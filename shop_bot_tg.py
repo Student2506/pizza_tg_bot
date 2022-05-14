@@ -14,6 +14,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram import Update
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
+from telegram.utils.helpers import escape_markdown
 
 from api_elasticpath import add_proudct_to_cart, create_customer_record
 from api_elasticpath import get_cart, get_cart_products, get_catalog
@@ -97,12 +98,15 @@ def handle_menu(update: Update, context: CallbackContext) -> str:
             access_token
         )
         query.message.reply_photo(
-            url, caption=dedent(pizza_detail), reply_markup=reply_markup,
+            url,
+            caption=dedent(pizza_detail),
+            reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN_V2
         )
     else:
         query.message.reply_text(
-            text=dedent(pizza_detail), reply_markup=reply_markup,
+            text=dedent(pizza_detail),
+            reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN_V2
         )
     return 'HANDLE_DESCRIPTION'
@@ -114,20 +118,21 @@ def build_pizzas_menu(pizzas):
     for pizza in pizzas:
         price = pizza.get('meta').get('display_price').get('with_tax')
         product_cart += f'''
-            {pizza.get('name')}
+            *{pizza.get('name')}*
             {pizza.get('description')}
-            {price.get('unit').get('formatted')} per kg
-            {pizza.get('quantity')}kg in cart for {
-                price.get('value').get('formatted')
-            }
+            {pizza.get('quantity')} пицц в корзине на сумму *{
+                escape_markdown(
+                    price.get('value').get('formatted'), version=2
+                )
+            }*
 
             '''
-        logger.debug(pizza)
+
         keyboard.append([InlineKeyboardButton(
             f"Убрать из корзины {pizza.get('name')}",
             callback_data=pizza.get('id')
         )])
-
+    logger.debug(product_cart)
     return product_cart, keyboard
 
 
@@ -194,9 +199,14 @@ def handle_description(update: Update, context: CallbackContext) -> str:
             .get('with_tax')
             .get('formatted')
         )
-        product_cart += f"Total: {total_formatted}"
+        product_cart += (
+            f"*К оплате: {escape_markdown(total_formatted, version=2)}*"
+        )
+        logger.debug(dedent(product_cart))
         query.message.reply_text(
-            text=dedent(product_cart), reply_markup=reply_markup
+            text=dedent(product_cart),
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2
         )
         logger.debug(f'elseseee2 {products}')
     return 'HANDLE_CART'
@@ -243,9 +253,13 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             .get('with_tax')
             .get('formatted')
         )
-        product_cart += f"Total: {total_formatted}"
+        product_cart += (
+            f"*К оплате: {escape_markdown(total_formatted, version=2)}*"
+        )
         query.message.reply_text(
-            text=dedent(product_cart), reply_markup=reply_markup
+            text=dedent(product_cart),
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2
         )
         return 'HANDLE_CART'
     elif query.data == 'pay':
@@ -276,9 +290,14 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             .get('with_tax')
             .get('formatted')
         )
-        product_cart += f"Total: {price_formatted}"
+        product_cart += (
+            f"*К оплате: {escape_markdown(price_formatted, version=2)}*"
+        )
+        logger.debug(product_cart)
         query.message.reply_text(
-            text=dedent(product_cart), reply_markup=reply_markup
+            text=dedent(product_cart),
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2
         )
         return 'HANDLE_CART'
 
