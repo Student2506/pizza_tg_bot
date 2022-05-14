@@ -55,7 +55,7 @@ def get_product_detail(url, product_id, access_token):
     return response.json().get('data')
 
 
-def get_fish_picture_url(url, picture_id, access_token):
+def get_product_picture_url(url, picture_id, access_token):
     headers = {
         'Authorization': f'Bearer {access_token}'
     }
@@ -81,6 +81,7 @@ def add_proudct_to_cart(url, product_id, quantity, access_token, client_id):
     )
     headers = {
         'Authorization': f'Bearer {access_token}',
+        'X-MOLTIN-CURRENCY': 'RUB',
     }
     json_data = {
         'data': {

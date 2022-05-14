@@ -10,13 +10,14 @@ from textwrap import dedent
 
 import redis
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram import Update
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
 from api_elasticpath import add_proudct_to_cart, create_customer_record
 from api_elasticpath import get_cart, get_cart_products, get_catalog
-from api_elasticpath import get_fish_picture_url, get_product_detail
+from api_elasticpath import get_product_detail, get_product_picture_url
 from api_elasticpath import get_token, remove_products_from_cart
 
 _database = None
@@ -25,7 +26,7 @@ FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 
 def start(update: Update, context: CallbackContext) -> str:
-    client_id = os.getenv('FISH_SHOP_CLIENT_ID')
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
         client_id
@@ -45,91 +46,86 @@ def start(update: Update, context: CallbackContext) -> str:
 def handle_menu(update: Update, context: CallbackContext) -> str:
     query = update.callback_query
     logger.debug(query.data)
-    client_id = os.getenv('FISH_SHOP_CLIENT_ID')
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
         client_id
     )
-    fish = get_product_detail(
+    pizza = get_product_detail(
         'https://api.moltin.com/v2/products/',
         query.data,
         access_token
     )
-    logger.debug(fish)
+    logger.debug(pizza)
     price_formatted = (
-        fish
-        .get('meta')
-        .get('display_price')
-        .get('with_tax')
-        .get('formatted')
+        pizza
+        .get('price')[0]
+        .get('amount')
     )
-    fish_detail = f'''
-    {fish.get('name')}
+    pizza_detail = f'''
+    *{pizza.get('name')}*
+    Стоимость: *{price_formatted}* рублей
 
-    {price_formatted} per kg
-    {fish.get('meta').get('stock').get('level')}kg on stock
-
-    {fish.get('description')}
+    _{pizza.get('description')}_
     '''
     context.bot.delete_message(
         chat_id=query.message.chat.id,
         message_id=query.message.message_id
     )
     context.user_data['chosen'] = query.data
-    quantity_row = [
-        InlineKeyboardButton(
-            f'{quantity} шт.', callback_data=quantity
-        ) for quantity in (1, 5, 10)
-    ]
-    keyboard = [quantity_row]
+    keyboard = [[InlineKeyboardButton(
+        'Положить в корзину', callback_data=f"add {pizza.get('id')}"
+    ), ], ]
     keyboard.append([InlineKeyboardButton('Назад', callback_data='Back'), ])
     keyboard.append([InlineKeyboardButton('Корзина', callback_data='Basket')])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    fish_picture_id = None
-    if fish.get("relationships"):
-        fish_picture_id = (
-            fish
+    pizza_picture_id = None
+    if pizza.get("relationships"):
+        pizza_picture_id = (
+            pizza
             .get("relationships")
             .get("main_image")
             .get("data")
             .get("id")
         )
 
-    if fish_picture_id:
-        url = get_fish_picture_url(
+    if pizza_picture_id:
+        url = get_product_picture_url(
             'https://api.moltin.com/v2/files/',
-            fish_picture_id,
+            pizza_picture_id,
             access_token
         )
         query.message.reply_photo(
-            url, caption=dedent(fish_detail), reply_markup=reply_markup
+            url, caption=dedent(pizza_detail), reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2
         )
     else:
         query.message.reply_text(
-            text=dedent(fish_detail), reply_markup=reply_markup
+            text=dedent(pizza_detail), reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN_V2
         )
     return 'HANDLE_DESCRIPTION'
 
 
-def build_fishes_menu(fishes):
+def build_pizzas_menu(pizzas):
     keyboard = []
     product_cart = ''
-    for fish in fishes:
-        price = fish.get('meta').get('display_price').get('with_tax')
+    for pizza in pizzas:
+        price = pizza.get('meta').get('display_price').get('with_tax')
         product_cart += f'''
-            {fish.get('name')}
-            {fish.get('description')}
+            {pizza.get('name')}
+            {pizza.get('description')}
             {price.get('unit').get('formatted')} per kg
-            {fish.get('quantity')}kg in cart for {
+            {pizza.get('quantity')}kg in cart for {
                 price.get('value').get('formatted')
             }
 
             '''
-        logger.debug(fish)
+        logger.debug(pizza)
         keyboard.append([InlineKeyboardButton(
-            f"Убрать из корзины {fish.get('name')}",
-            callback_data=fish.get('id')
+            f"Убрать из корзины {pizza.get('name')}",
+            callback_data=pizza.get('id')
         )])
 
     return product_cart, keyboard
@@ -138,7 +134,7 @@ def build_fishes_menu(fishes):
 def handle_description(update: Update, context: CallbackContext) -> str:
     query = update.callback_query
     good = context.user_data.get("chosen")
-    client_id = os.getenv('FISH_SHOP_CLIENT_ID')
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
         client_id
@@ -158,9 +154,9 @@ def handle_description(update: Update, context: CallbackContext) -> str:
         logger.debug(query.message)
         query.message.reply_text('Please choose: ', reply_markup=reply_markup)
         return 'HANDLE_MENU'
-    elif user_choice.isnumeric() and int(user_choice) in (1, 5, 10):
+    elif 'add' in user_choice:
+        query.answer(text='Пицца добавлена в корзину', show_alert=False)
         logger.debug(user_choice)
-        qunatity = int(user_choice)
         cart = get_cart(
             'https://api.moltin.com/v2/carts/',
             access_token,
@@ -170,7 +166,7 @@ def handle_description(update: Update, context: CallbackContext) -> str:
         cart = add_proudct_to_cart(
             'https://api.moltin.com/v2/carts/',
             good,
-            qunatity,
+            1,
             access_token,
             str(update.effective_user.id)
         )
@@ -182,7 +178,7 @@ def handle_description(update: Update, context: CallbackContext) -> str:
             str(update.effective_user.id)
         )
 
-        product_cart, keyboard = build_fishes_menu(products.get('data'))
+        product_cart, keyboard = build_pizzas_menu(products.get('data'))
         keyboard.append(
             [InlineKeyboardButton('В меню', callback_data='menu'), ]
         )
@@ -209,7 +205,7 @@ def handle_description(update: Update, context: CallbackContext) -> str:
 def handle_cart(update: Update, context: CallbackContext) -> str:
     query = update.callback_query
     logger.debug(f'Handle CART {query.data}')
-    client_id = os.getenv('FISH_SHOP_CLIENT_ID')
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
         client_id
@@ -231,7 +227,7 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             str(update.effective_user.id)
         )
 
-        product_cart, keyboard = build_fishes_menu(products.get('data'))
+        product_cart, keyboard = build_pizzas_menu(products.get('data'))
         keyboard.append(
             [InlineKeyboardButton('В меню', callback_data='menu'), ]
         )
@@ -267,7 +263,7 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             access_token,
             str(update.effective_user.id)
         )
-        product_cart, keyboard = build_fishes_menu(products.get('data'))
+        product_cart, keyboard = build_pizzas_menu(products.get('data'))
         keyboard.append(
             [InlineKeyboardButton('В меню', callback_data='menu'), ]
         )
@@ -290,7 +286,7 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
 def waiting_email(update: Update, context: CallbackContext) -> None:
     users_reply = update.message.text
     update.message.reply_text(users_reply)
-    client_id = os.getenv('FISH_SHOP_CLIENT_ID')
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
         client_id
@@ -341,9 +337,9 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
 def get_database_connection():
     global _database
     if _database is None:
-        database_password = os.getenv("FISH_SHOP_DATABASE_PASSWORD")
-        database_host = os.getenv("FISH_SHOP_DATABASE_HOST")
-        database_port = os.getenv("FISH_SHOP_DATABASE_PORT")
+        database_password = os.getenv("PIZZA_SHOP_DATABASE_PASSWORD")
+        database_host = os.getenv("PIZZA_SHOP_DATABASE_HOST")
+        database_port = os.getenv("PIZZA_SHOP_DATABASE_PORT")
         _database = redis.Redis(
             host=database_host, port=database_port, password=database_password
         )
@@ -353,7 +349,7 @@ def get_database_connection():
 def main():
     load_dotenv()
     logging.basicConfig(level=logging.DEBUG, format=FORMAT)
-    token = os.getenv("FISH_SHOP_TG_BOTID")
+    token = os.getenv("PIZZA_SHOP_TG_BOTID")
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
