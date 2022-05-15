@@ -10,6 +10,7 @@ from textwrap import dedent
 
 import redis
 from dotenv import load_dotenv
+from geopy.distance import distance
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram import Update
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler
@@ -18,8 +19,9 @@ from telegram.utils.helpers import escape_markdown
 
 from api_elasticpath import add_proudct_to_cart, create_customer_record
 from api_elasticpath import get_cart, get_cart_products, get_catalog
-from api_elasticpath import get_product_detail, get_product_picture_url
-from api_elasticpath import get_token, remove_products_from_cart
+from api_elasticpath import get_pizzeries_coordinates, get_product_detail
+from api_elasticpath import get_product_picture_url, get_token
+from api_elasticpath import remove_products_from_cart
 from api_yandex import fetch_coordinates
 
 _database = None
@@ -327,7 +329,97 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
         )
         return 'HANDLE_WAITING'
     logger.debug(current_position)
-    return 'HANDLE_WAITING'
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id
+    )
+    pizzeries = get_pizzeries_coordinates(
+        'https://api.moltin.com/v2/flows/pizzeria/entries',
+        access_token
+    )
+    logger.debug(pizzeries)
+    closest_pizzeria = get_closest_pizzeria(location, pizzeries)
+    logger.debug(closest_pizzeria)
+    response, markup = get_delivery_model(closest_pizzeria)
+    logger.debug(response)
+    reply_markup = InlineKeyboardMarkup(markup)
+    update.message.reply_text(dedent(response), reply_markup=reply_markup)
+    return 'HANDLE_DELIVERY'
+
+
+
+
+def handle_delivery(update: Update, context: CallbackContext) -> None:
+    pass
+
+
+def get_delivery_model(pizzeria):
+    response = {
+        'less_than_5_km': (
+            '''
+            Похоже, придется ехать до вас на самокате.
+            Доставка будет стоить 100 рублей. Доставляем или самовывоз?'
+            '''
+        ),
+        'less_than_500_m': (
+            'Mожет, заберете пиццу из нашей пиццерии неподалёку? Она всего в '
+            f'{pizzeria.get("distance").m:.2f} метрах от вас! вот её адрес: '
+            f'{pizzeria.get("address")} \n\n'
+            'А можем и бесплатно доставить, нам не сложно.'
+        ),
+        'less_than_20_km': 'Доставка будет стоить 300 рублей.',
+        'more_than_20_km': (
+            'Простите, но так далько мы пиццу не доставим.\n'
+            f'Ближайшая пиццерия аж в {pizzeria.get("distance").km:.2f} '
+            'километрах от вас!'
+        )
+    }
+
+    if pizzeria.get('distance').m < 500:
+        message = response['less_than_500_m']
+        markup = [
+            [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
+            [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
+        ]
+    elif pizzeria.get('distance').m < 5000:
+        message = response['less_than_5_km']
+        markup = [
+            [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
+            [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
+        ]
+    elif pizzeria.get('distance').m < 20000:
+        message = response['less_than_20_km']
+        markup = [
+            [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
+            [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
+        ]
+    else:
+        message = response['more_than_20_km']
+        markup = [
+            [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
+        ]
+    return message, markup
+
+
+def get_pizzeriza_range(pizzeria):
+    return pizzeria.get('distance').m
+
+
+def get_closest_pizzeria(coords, pizzeries):
+    pizzeria_distances = []
+    for pizzeria in pizzeries:
+        pizza_distance = distance(
+            (coords.latitude, coords.longitude),
+            (pizzeria.get('latitude'), pizzeria.get('longitude'))
+        )
+        pizzeria_range = {
+            'name': pizzeria.get('alias'),
+            'distance': pizza_distance,
+            'address': pizzeria.get('address')
+        }
+        pizzeria_distances.append(pizzeria_range)
+    return min(pizzeria_distances, key=get_pizzeriza_range)
 
 
 def waiting_email(update: Update, context: CallbackContext) -> None:
@@ -373,6 +465,7 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': waiting_email,
         'HANDLE_WAITING': handle_waiting,
+        'HANDLE_DELIVERY': handle_delivery,
     }
     state_handler = states_functions[user_state]
     try:
