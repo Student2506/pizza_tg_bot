@@ -28,6 +28,7 @@ from api_yandex import fetch_coordinates
 _database = None
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+FEEDBACK_TIMER = 3600
 
 
 def start(update: Update, context: CallbackContext) -> str:
@@ -361,7 +362,9 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
     return 'HANDLE_DELIVERY'
 
 
-def handle_delivery(update: Update, context: CallbackContext) -> None:
+def handle_delivery(
+    update: Update, context: CallbackContext
+) -> None:
     logger.debug('Handle delivery')
     query = update.callback_query
     logger.debug(query.data)
@@ -418,6 +421,11 @@ def handle_delivery(update: Update, context: CallbackContext) -> None:
             longitude=location.get('longitude')
         )
         logger.debug(f'get delivery id: {delivery_tg}')
+        context.job_queue.run_once(
+            remind_to_give_feedback,
+            FEEDBACK_TIMER,
+            context=query.message.chat_id
+        )
 
     return 'HANDLE_DELIVERY'
 
@@ -510,6 +518,17 @@ def waiting_email(update: Update, context: CallbackContext) -> None:
     return "START"
 
 
+def remind_to_give_feedback(context: CallbackContext):
+    message = '''
+        Приятного аппетита! *место для рекламы*
+
+        *сообщение что делать если пицца не пришла*
+    '''
+    context.bot.send_message(
+        chat_id=context.job.context, text=dedent(message)
+    )
+
+
 def handle_users_reply(update: Update, context: CallbackContext) -> None:
     db = get_database_connection()
     if update.message:
@@ -564,8 +583,11 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
     dispatcher.add_handler(
         MessageHandler(Filters.text | Filters.location, handle_users_reply))
-    dispatcher.add_handler(CommandHandler('start', handle_users_reply))
+    dispatcher.add_handler(
+        CommandHandler('start', handle_users_reply, pass_job_queue=True),
+    )
     updater.start_polling()
+    updater.idle()
 
 
 if __name__ == '__main__':
