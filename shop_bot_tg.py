@@ -20,6 +20,7 @@ from api_elasticpath import add_proudct_to_cart, create_customer_record
 from api_elasticpath import get_cart, get_cart_products, get_catalog
 from api_elasticpath import get_product_detail, get_product_picture_url
 from api_elasticpath import get_token, remove_products_from_cart
+from api_yandex import fetch_coordinates
 
 _database = None
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 
 def start(update: Update, context: CallbackContext) -> str:
+    logger.debug('HANDLE_START')
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
         'https://api.moltin.com/oauth/access_token',
@@ -45,6 +47,7 @@ def start(update: Update, context: CallbackContext) -> str:
 
 
 def handle_menu(update: Update, context: CallbackContext) -> str:
+    logger.debug('HANDLE_MENU')
     query = update.callback_query
     logger.debug(query.data)
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
@@ -64,10 +67,10 @@ def handle_menu(update: Update, context: CallbackContext) -> str:
         .get('amount')
     )
     pizza_detail = f'''
-    *{pizza.get('name')}*
+    *{escape_markdown(pizza.get('name'), version=2)}*
     Стоимость: *{price_formatted}* рублей
 
-    _{pizza.get('description')}_
+    _{escape_markdown(pizza.get('description'), version=2)}_
     '''
     context.bot.delete_message(
         chat_id=query.message.chat.id,
@@ -113,13 +116,14 @@ def handle_menu(update: Update, context: CallbackContext) -> str:
 
 
 def build_pizzas_menu(pizzas):
+    logger.debug('HANDLE PIZZAS MENU')
     keyboard = []
     product_cart = ''
     for pizza in pizzas:
         price = pizza.get('meta').get('display_price').get('with_tax')
         product_cart += f'''
-            *{pizza.get('name')}*
-            {pizza.get('description')}
+            *{escape_markdown(pizza.get('name'), version=2)}*
+            {escape_markdown(pizza.get('description'), version=2)}
             {pizza.get('quantity')} пицц в корзине на сумму *{
                 escape_markdown(
                     price.get('value').get('formatted'), version=2
@@ -137,6 +141,7 @@ def build_pizzas_menu(pizzas):
 
 
 def handle_description(update: Update, context: CallbackContext) -> str:
+    logger.debug('Handle description')
     query = update.callback_query
     good = context.user_data.get("chosen")
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
@@ -263,8 +268,10 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
         )
         return 'HANDLE_CART'
     elif query.data == 'pay':
-        query.message.reply_text('Mail to send?')
-        return 'WAITING_EMAIL'
+        query.message.reply_text(
+            'Хорошо. пришлите нам ваш адрес текстом или геолокацию.'
+        )
+        return 'HANDLE_WAITING'
     else:
         remove_products_from_cart(
             'https://api.moltin.com/v2/carts/',
@@ -300,6 +307,27 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return 'HANDLE_CART'
+
+
+def handle_waiting(update: Update, context: CallbackContext) -> None:
+    logger.debug('Handle waiting')
+    location = update.message.location
+    users_reply = update.message.text
+    if location is not None:
+        logger.debug(location)
+    if users_reply is not None:
+        yandex_api_key = os.getenv('PIZZA_SHOP_YA_TOKEN')
+        location = fetch_coordinates(yandex_api_key, users_reply)
+        logger.debug(location)
+    if location is not None:
+        current_position = location.latitude, location.longitude
+    else:
+        update.message.reply_text(
+            'Не удалось определить адрес. Попробуйте ещё раз.'
+        )
+        return 'HANDLE_WAITING'
+    logger.debug(current_position)
+    return 'HANDLE_WAITING'
 
 
 def waiting_email(update: Update, context: CallbackContext) -> None:
@@ -344,9 +372,11 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': waiting_email,
+        'HANDLE_WAITING': handle_waiting,
     }
     state_handler = states_functions[user_state]
     try:
+        logger.debug(f'Getting into {user_state}')
         next_state = state_handler(update, context)
         db.set(chat_id, next_state)
     except Exception as err:
@@ -372,7 +402,8 @@ def main():
     updater = Updater(token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
+    dispatcher.add_handler(
+        MessageHandler(Filters.text | Filters.location, handle_users_reply))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply))
     updater.start_polling()
 
