@@ -17,11 +17,12 @@ from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 from telegram.utils.helpers import escape_markdown
 
-from api_elasticpath import add_proudct_to_cart, create_customer_record
-from api_elasticpath import get_cart, get_cart_products, get_catalog
-from api_elasticpath import get_pizzeries_coordinates, get_product_detail
-from api_elasticpath import get_product_picture_url, get_token
-from api_elasticpath import remove_products_from_cart
+from api_elasticpath import add_proudct_to_cart, create_customer_address
+from api_elasticpath import create_customer_record, get_cart
+from api_elasticpath import get_cart_products, get_catalog
+from api_elasticpath import get_customer_address, get_pizzeries_coordinates
+from api_elasticpath import get_product_detail, get_product_picture_url
+from api_elasticpath import get_token, remove_products_from_cart
 from api_yandex import fetch_coordinates
 
 _database = None
@@ -341,7 +342,17 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
     logger.debug(pizzeries)
     closest_pizzeria = get_closest_pizzeria(location, pizzeries)
     context.user_data['pizzeria'] = closest_pizzeria
-    context.user_data['user_coordinates'] = location
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    internal_access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id,
+        client_secret=os.getenv('PIZZA_SHOP_CLIENT_SECRET', None)
+    )
+    context.user_data['user_coordinates'] = create_customer_address(
+        'https://api.moltin.com/v2/flows/customer-address/entries',
+        internal_access_token,
+        location
+    )
     logger.debug(closest_pizzeria)
     response, markup = get_delivery_model(closest_pizzeria)
     logger.debug(response)
@@ -360,7 +371,7 @@ def handle_delivery(update: Update, context: CallbackContext) -> None:
         query.message.reply_text(
             escape_markdown(
                 'Ваша пицца будет вас ждать по адресу:\n'
-                f'{nearest_pizzeria.get("address")} \n'
+                f'{nearest_pizzeria.get("pizzeria").get("address")}\n'
                 'До встречи в пиццерии 😁',
                 version=2),
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -368,6 +379,45 @@ def handle_delivery(update: Update, context: CallbackContext) -> None:
     else:
         location = context.user_data.get('user_coordinates')
         logger.debug(f'sending {location}')
+        client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+        access_token = get_token(
+            'https://api.moltin.com/oauth/access_token',
+            client_id
+        )
+        location = get_customer_address(
+            'https://api.moltin.com/v2/flows/customer-address/entries',
+            access_token,
+            location
+        )
+        delivery_tg = nearest_pizzeria.get("pizzeria").get("delivery-tg-id")
+        bot = update.callback_query.bot
+        products = get_cart_products(
+            'https://api.moltin.com/v2/carts/',
+            access_token,
+            str(update.effective_user.id)
+        )
+        product_cart, _ = build_pizzas_menu(products.get('data'))
+        total_formatted = (
+            products
+            .get('meta')
+            .get('display_price')
+            .get('with_tax')
+            .get('formatted')
+        )
+        product_cart += (
+            f"*К оплате: {escape_markdown(total_formatted, version=2)}*"
+        )
+        bot.send_message(
+            delivery_tg,
+            dedent(product_cart),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        bot.send_location(
+            delivery_tg,
+            latitude=location.get('latitude'),
+            longitude=location.get('longitude')
+        )
+        logger.debug(f'get delivery id: {delivery_tg}')
 
     return 'HANDLE_DELIVERY'
 
@@ -432,9 +482,8 @@ def get_closest_pizzeria(coords, pizzeries):
             (pizzeria.get('latitude'), pizzeria.get('longitude'))
         )
         pizzeria_range = {
-            'name': pizzeria.get('alias'),
+            'pizzeria': pizzeria,
             'distance': pizza_distance,
-            'address': pizzeria.get('address')
         }
         pizzeria_distances.append(pizzeria_range)
     return min(pizzeria_distances, key=get_pizzeriza_range)

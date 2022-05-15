@@ -142,3 +142,30 @@ def get_pizzeries_coordinates(url, access_token):
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json().get('data')
+
+
+def create_customer_address(url, access_token, location):
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+    }
+    json_data = {
+        'data': {
+            'type': 'entry',
+            'longitude': location.longitude,
+            'latitude': location.latitude,
+        }
+    }
+    logger.debug(json_data)
+    response = requests.post(url, headers=headers, json=json_data)
+    response.raise_for_status()
+    return response.json().get('data').get('id')
+
+
+def get_customer_address(url, access_token, id):
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+    }
+
+    response = requests.get(f'{url}/{id}', headers=headers)
+    response.raise_for_status()
+    return response.json().get('data')
