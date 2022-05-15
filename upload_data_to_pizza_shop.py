@@ -84,10 +84,11 @@ def main(address, menu):
         )
         flow_id = flow.get('id')
         fields = [
-            ('Address', 'string', 'Pizzeria address'),
-            ('Alias', 'string', 'Pizzeria name'),
-            ('Longitude', 'string', 'Longitude'),
-            ('Latitude', 'string', 'Latitude'),
+            ('Address', 'string', 'pizzeria-address'),
+            ('Alias', 'string', 'pizzeria-name'),
+            ('Longitude', 'string', 'longitude'),
+            ('Latitude', 'string', 'latitude'),
+            ('Delivery TG ID', 'string', 'delivery-id'),
         ]
         for field in fields:
             create_field(
@@ -108,7 +109,8 @@ def main(address, menu):
                 'address': address.get('address').get('full'),
                 'alias': address.get('alias'),
                 'longitude': address.get('coordinates').get('lon'),
-                'latitude': address.get('coordinates').get('lat')
+                'latitude': address.get('coordinates').get('lat'),
+                'delivery-tg-id': '451201167',
             }
             response = requests.post(
                 'https://api.moltin.com/v2/flows/pizzeria/entries',

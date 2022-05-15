@@ -340,6 +340,8 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
     )
     logger.debug(pizzeries)
     closest_pizzeria = get_closest_pizzeria(location, pizzeries)
+    context.user_data['pizzeria'] = closest_pizzeria
+    context.user_data['user_coordinates'] = location
     logger.debug(closest_pizzeria)
     response, markup = get_delivery_model(closest_pizzeria)
     logger.debug(response)
@@ -348,10 +350,26 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
     return 'HANDLE_DELIVERY'
 
 
-
-
 def handle_delivery(update: Update, context: CallbackContext) -> None:
-    pass
+    logger.debug('Handle delivery')
+    query = update.callback_query
+    logger.debug(query.data)
+    nearest_pizzeria = context.user_data.get("pizzeria")
+    logger.debug(nearest_pizzeria)
+    if query.data == 'pickup':
+        query.message.reply_text(
+            escape_markdown(
+                'Ваша пицца будет вас ждать по адресу:\n'
+                f'{nearest_pizzeria.get("address")} \n'
+                'До встречи в пиццерии 😁',
+                version=2),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+    else:
+        location = context.user_data.get('user_coordinates')
+        logger.debug(f'sending {location}')
+
+    return 'HANDLE_DELIVERY'
 
 
 def get_delivery_model(pizzeria):
@@ -370,7 +388,7 @@ def get_delivery_model(pizzeria):
         ),
         'less_than_20_km': 'Доставка будет стоить 300 рублей.',
         'more_than_20_km': (
-            'Простите, но так далько мы пиццу не доставим.\n'
+            'Простите, но так далеко мы пиццу не доставим.\n'
             f'Ближайшая пиццерия аж в {pizzeria.get("distance").km:.2f} '
             'километрах от вас!'
         )
