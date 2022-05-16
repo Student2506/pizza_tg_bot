@@ -490,7 +490,7 @@ def get_delivery_model(pizzeria):
         markup = [
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
-        delivery_price = -1
+        delivery_price = 0
     return message, markup, delivery_price
 
 
