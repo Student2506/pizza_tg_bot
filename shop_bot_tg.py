@@ -351,7 +351,7 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
         location
     )
     logger.debug(closest_pizzeria)
-    message_to_customer, markup, delivery_price = get_delivery_model(
+    message_to_customer, markup, delivery_price = calculate_distance_and_price(
         closest_pizzeria
     )
     context.user_data['delivery'] = delivery_price
@@ -441,7 +441,7 @@ def handle_delivery(
     return 'PAYMENT'
 
 
-def get_delivery_model(pizzeria):
+def calculate_distance_and_price(pizzeria):
     message_to_customer = {
         'less_than_5_km': (
             '''
