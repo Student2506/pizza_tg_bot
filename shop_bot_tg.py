@@ -1,9 +1,3 @@
-"""
-Работает с этими модулями:
-
-python-telegram-bot==13.11
-redis==4.3.0
-"""
 import logging
 import os
 from textwrap import dedent
