@@ -293,6 +293,9 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
         keyboard.append(
             [InlineKeyboardButton('В меню', callback_data='menu'), ]
         )
+        keyboard.append(
+            [InlineKeyboardButton('Оплата', callback_data='pay'), ]
+        )
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         price_formatted = (
