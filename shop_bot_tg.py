@@ -351,11 +351,15 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
         location
     )
     logger.debug(closest_pizzeria)
-    response, markup, delivery_price = get_delivery_model(closest_pizzeria)
+    message_to_customer, markup, delivery_price = get_delivery_model(
+        closest_pizzeria
+    )
     context.user_data['delivery'] = delivery_price
-    logger.debug(response)
+    logger.debug(message_to_customer)
     reply_markup = InlineKeyboardMarkup(markup)
-    update.message.reply_text(dedent(response), reply_markup=reply_markup)
+    update.message.reply_text(
+        dedent(message_to_customer), reply_markup=reply_markup
+    )
     return 'HANDLE_DELIVERY'
 
 
@@ -438,7 +442,7 @@ def handle_delivery(
 
 
 def get_delivery_model(pizzeria):
-    response = {
+    message_to_customer = {
         'less_than_5_km': (
             '''
             Похоже, придется ехать до вас на самокате.
@@ -460,28 +464,28 @@ def get_delivery_model(pizzeria):
     }
 
     if pizzeria.get('distance').m < 500:
-        message = response['less_than_500_m']
+        message = message_to_customer['less_than_500_m']
         delivery_price = 0
         markup = [
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
     elif pizzeria.get('distance').m < 5000:
-        message = response['less_than_5_km']
+        message = message_to_customer['less_than_5_km']
         markup = [
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
         delivery_price = 100
     elif pizzeria.get('distance').m < 20000:
-        message = response['less_than_20_km']
+        message = message_to_customer['less_than_20_km']
         markup = [
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
         delivery_price = 300
     else:
-        message = response['more_than_20_km']
+        message = message_to_customer['more_than_20_km']
         markup = [
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
