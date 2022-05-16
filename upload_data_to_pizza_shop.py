@@ -75,7 +75,9 @@ def main(address, menu):
         client_id,
         client_secret=os.getenv('PIZZA_SHOP_CLIENT_SECRET', None)
     )
-    if address:
+    if not address:
+        pass
+    else:
         flow = create_flow(
             'https://api.moltin.com/v2/flows',
             access_token,
@@ -118,64 +120,65 @@ def main(address, menu):
             )
             response.raise_for_status()
 
-    if menu:
-        menu = json.load(menu)
-        for item in menu:
-            product = {
-                'type': 'product',
-                'name': item.get('name', None),
-                'slug': slugify(f"{item.get('name')}-{item.get('id')}"),
-                'sku': slugify(f"{item.get('name')}-{item.get('id')}"),
-                'description': item.get('description'),
-                'manage_stock': False,
-                'price': [
-                    {
-                        'amount': item.get('price', None),
-                        'currency': 'RUB',
-                        'includes_tax': True
-                    }
-                ],
-                'status': 'live',
-                'commodity_type': 'physical',
-            }
-            response = requests.post(
-                'https://api.moltin.com/v2/products',
-                headers=headers,
-                json={'data': product}
-            )
-            response.raise_for_status()
-            shop_item = response.json().get('data')
-            logger.debug(response.json())
-            files = {
-                'file_location': (None, item.get('product_image').get('url')),
-            }
+    if not menu:
+        return
+    menu = json.load(menu)
+    for item in menu:
+        product = {
+            'type': 'product',
+            'name': item.get('name', None),
+            'slug': slugify(f"{item.get('name')}-{item.get('id')}"),
+            'sku': slugify(f"{item.get('name')}-{item.get('id')}"),
+            'description': item.get('description'),
+            'manage_stock': False,
+            'price': [
+                {
+                    'amount': item.get('price', None),
+                    'currency': 'RUB',
+                    'includes_tax': True
+                }
+            ],
+            'status': 'live',
+            'commodity_type': 'physical',
+        }
+        response = requests.post(
+            'https://api.moltin.com/v2/products',
+            headers=headers,
+            json={'data': product}
+        )
+        response.raise_for_status()
+        shop_item = response.json().get('data')
+        logger.debug(response.json())
+        files = {
+            'file_location': (None, item.get('product_image').get('url')),
+        }
 
-            response = requests.post(
-                'https://api.moltin.com/v2/files',
-                headers=headers,
-                files=files
-            )
-            response.raise_for_status()
-            shop_item_picture = response.json().get('data')
-            logger.debug(response.json())
+        response = requests.post(
+            'https://api.moltin.com/v2/files',
+            headers=headers,
+            files=files
+        )
+        response.raise_for_status()
+        shop_item_picture = response.json().get('data')
+        logger.debug(response.json())
 
-            shop_item_url = (
-                f'https://api.moltin.com/v2/products/{shop_item.get("id")}'
-                '/relationships/main-image'
-            )
-            json_data = {
-                'data': {
-                    'type': 'main_image',
-                    'id': shop_item_picture.get('id'),
-                },
-            }
-            response = requests.post(
-                shop_item_url,
-                headers=headers,
-                json=json_data
-            )
-            response.raise_for_status()
-            logger.debug(response.json())
+        shop_item_url = (
+            f'https://api.moltin.com/v2/products/{shop_item.get("id")}'
+            '/relationships/main-image'
+        )
+        json_data = {
+            'data': {
+                'type': 'main_image',
+                'id': shop_item_picture.get('id'),
+            },
+        }
+        response = requests.post(
+            shop_item_url,
+            headers=headers,
+            json=json_data
+        )
+        response.raise_for_status()
+        logger.debug(response.json())
 
 
 if __name__ == '__main__':

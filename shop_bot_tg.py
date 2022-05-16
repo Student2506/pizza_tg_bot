@@ -104,12 +104,13 @@ def handle_menu(update: Update, context: CallbackContext) -> str:
             reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN_V2
         )
-    else:
-        query.message.reply_text(
-            text=dedent(pizza_detail),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        return 'HANDLE_DESCRIPTION'
+
+    query.message.reply_text(
+        text=dedent(pizza_detail),
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     return 'HANDLE_DESCRIPTION'
 
 
@@ -162,7 +163,7 @@ def handle_description(update: Update, context: CallbackContext) -> str:
         logger.debug(query.message)
         query.message.reply_text('Please choose: ', reply_markup=reply_markup)
         return 'HANDLE_MENU'
-    elif 'add' in user_choice:
+    if 'add' in user_choice:
         query.answer(text='Пицца добавлена в корзину', show_alert=False)
         logger.debug(user_choice)
         cart = get_cart(
@@ -179,39 +180,39 @@ def handle_description(update: Update, context: CallbackContext) -> str:
             str(update.effective_user.id)
         )
         logger.debug(f'added products: {cart}')
-    else:
-        products = get_cart_products(
-            'https://api.moltin.com/v2/carts/',
-            access_token,
-            str(update.effective_user.id)
-        )
+        return
 
-        product_cart, keyboard = build_pizzas_menu(products.get('data'))
-        keyboard.append(
-            [InlineKeyboardButton('В меню', callback_data='menu'), ]
-        )
-        keyboard.append(
-            [InlineKeyboardButton('Оплата', callback_data='pay'), ]
-        )
+    products = get_cart_products(
+        'https://api.moltin.com/v2/carts/',
+        access_token,
+        str(update.effective_user.id)
+    )
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        total_formatted = (
-            products
-            .get('meta')
-            .get('display_price')
-            .get('with_tax')
-            .get('formatted')
-        )
-        product_cart += (
-            f"*К оплате: {escape_markdown(total_formatted, version=2)}*"
-        )
-        logger.debug(dedent(product_cart))
-        query.message.reply_text(
-            text=dedent(product_cart),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
-        logger.debug(f'elseseee2 {products}')
+    product_cart, keyboard = build_pizzas_menu(products.get('data'))
+    keyboard.append(
+        [InlineKeyboardButton('В меню', callback_data='menu'), ]
+    )
+    keyboard.append(
+        [InlineKeyboardButton('Оплата', callback_data='pay'), ]
+    )
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    total_formatted = (
+        products
+        .get('meta')
+        .get('display_price')
+        .get('with_tax')
+        .get('formatted')
+    )
+    product_cart += (
+        f"*К оплате: {escape_markdown(total_formatted, version=2)}*"
+    )
+    logger.debug(dedent(product_cart))
+    query.message.reply_text(
+        text=dedent(product_cart),
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     return 'HANDLE_CART'
 
 
@@ -233,7 +234,7 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
         reply_markup = InlineKeyboardMarkup(keyboard)
         query.message.reply_text('Please choose: ', reply_markup=reply_markup)
         return 'HANDLE_MENU'
-    elif query.data == 'Basket':
+    if query.data == 'Basket':
         products = get_cart_products(
             'https://api.moltin.com/v2/carts/',
             access_token,
@@ -265,49 +266,49 @@ def handle_cart(update: Update, context: CallbackContext) -> str:
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return 'HANDLE_CART'
-    elif query.data == 'pay':
+    if query.data == 'pay':
         query.message.reply_text(
             'Хорошо. пришлите нам ваш адрес текстом или геолокацию.'
         )
         return 'HANDLE_WAITING'
-    else:
-        remove_products_from_cart(
-            'https://api.moltin.com/v2/carts/',
-            query.data,
-            access_token,
-            str(update.effective_user.id)
-        )
-        products = get_cart_products(
-            'https://api.moltin.com/v2/carts/',
-            access_token,
-            str(update.effective_user.id)
-        )
-        product_cart, keyboard = build_pizzas_menu(products.get('data'))
-        keyboard.append(
-            [InlineKeyboardButton('В меню', callback_data='menu'), ]
-        )
-        keyboard.append(
-            [InlineKeyboardButton('Оплата', callback_data='pay'), ]
-        )
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        price_formatted = (
-            products
-            .get('meta')
-            .get('display_price')
-            .get('with_tax')
-            .get('formatted')
-        )
-        product_cart += (
-            f"*К оплате: {escape_markdown(price_formatted, version=2)}*"
-        )
-        logger.debug(product_cart)
-        query.message.reply_text(
-            text=dedent(product_cart),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
-        return 'HANDLE_CART'
+    remove_products_from_cart(
+        'https://api.moltin.com/v2/carts/',
+        query.data,
+        access_token,
+        str(update.effective_user.id)
+    )
+    products = get_cart_products(
+        'https://api.moltin.com/v2/carts/',
+        access_token,
+        str(update.effective_user.id)
+    )
+    product_cart, keyboard = build_pizzas_menu(products.get('data'))
+    keyboard.append(
+        [InlineKeyboardButton('В меню', callback_data='menu'), ]
+    )
+    keyboard.append(
+        [InlineKeyboardButton('Оплата', callback_data='pay'), ]
+    )
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    price_formatted = (
+        products
+        .get('meta')
+        .get('display_price')
+        .get('with_tax')
+        .get('formatted')
+    )
+    product_cart += (
+        f"*К оплате: {escape_markdown(price_formatted, version=2)}*"
+    )
+    logger.debug(product_cart)
+    query.message.reply_text(
+        text=dedent(product_cart),
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
+    return 'HANDLE_CART'
 
 
 def handle_waiting(update: Update, context: CallbackContext) -> None:
@@ -318,13 +319,13 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
         yandex_api_key = os.getenv('PIZZA_SHOP_YA_TOKEN')
         location = fetch_coordinates(yandex_api_key, users_reply)
         logger.debug(location)
-    if location:
-        current_position = location.latitude, location.longitude
-    else:
+    if not location:
         update.message.reply_text(
             'Не удалось определить адрес. Попробуйте ещё раз.'
         )
         return 'HANDLE_WAITING'
+
+    current_position = location.latitude, location.longitude
     logger.debug(current_position)
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     access_token = get_token(
@@ -469,26 +470,31 @@ def calculate_distance_and_price(pizzeria):
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
-    elif pizzeria.get('distance').m < 5000:
+        return message, markup, delivery_price
+
+    if pizzeria.get('distance').m < 5000:
         message = message_to_customer['less_than_5_km']
         markup = [
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
         delivery_price = 100
-    elif pizzeria.get('distance').m < 20000:
+        return message, markup, delivery_price
+
+    if pizzeria.get('distance').m < 20000:
         message = message_to_customer['less_than_20_km']
         markup = [
             [InlineKeyboardButton('Доставка', callback_data='delivery'), ],
             [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
         ]
         delivery_price = 300
-    else:
-        message = message_to_customer['more_than_20_km']
-        markup = [
-            [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
-        ]
-        delivery_price = 0
+        return message, markup, delivery_price
+
+    message = message_to_customer['more_than_20_km']
+    markup = [
+        [InlineKeyboardButton('Самовывоз', callback_data='pickup'), ]
+    ]
+    delivery_price = 0
     return message, markup, delivery_price
 
 
@@ -568,16 +574,17 @@ def shipping_callback(update: Update, context: CallbackContext) -> None:
             error_message="Something went wrong..."
         )
         return
-    else:
-        options = list()
-        delivery = context.user_data.get('delivery')
-        options.append(
-            ShippingOption(
-                '1', 'Доставка', [LabeledPrice('delivery', delivery * 100)]
-            )
+
+    options = list()
+    delivery = context.user_data.get('delivery')
+    options.append(
+        ShippingOption(
+            '1', 'Доставка', [LabeledPrice('delivery', delivery * 100)]
         )
-        context.bot.answer_shipping_query(shipping_query_id=query.id, ok=True,
-                                          shipping_options=options)
+    )
+    context.bot.answer_shipping_query(
+        shipping_query_id=query.id, ok=True, shipping_options=options
+    )
 
 
 def precheckout_callback(update: Update, context: CallbackContext) -> None:
@@ -586,10 +593,10 @@ def precheckout_callback(update: Update, context: CallbackContext) -> None:
         context.bot.answer_pre_checkout_query(
             pre_checkout_query_id=query.id, ok=False,
             error_message="Something went wrong...")
-    else:
-        context.bot.answer_pre_checkout_query(
-            pre_checkout_query_id=query.id, ok=True
-        )
+        return
+    context.bot.answer_pre_checkout_query(
+        pre_checkout_query_id=query.id, ok=True
+    )
 
 
 def successful_payment_callback(
