@@ -26,14 +26,3 @@ def fetch_coordinates(apikey, address):
     most_relevant = found_places[0]
     lon, lat = most_relevant['GeoObject']['Point']['pos'].split(' ')
     return Address(latitude=lat, longitude=lon)
-
-
-def main():
-    yandex_api_key = os.getenv('PIZZA_SHOP_YA_TOKEN')
-    coords = fetch_coordinates(yandex_api_key, 'Серпуховская')
-
-    print(coords)
-
-
-if __name__ == '__main__':
-    main()
