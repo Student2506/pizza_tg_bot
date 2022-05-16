@@ -46,9 +46,48 @@ API Motlin
 ```
 upload_data_to_pizza_shop.py --address address.json --menu menu.json
 ```
- ![Образец меню пицц](/menu_json.png)
- ![Образец адрсов](/address_json.png)
-
+Образец меню пицц (menu.json)
+```
+[
+	{
+		"id": 20,
+		"name": "Чизбургер-пицца",
+		"description": "мясной соус болоньезе, моцарелла, лук, соленые огурчики, томаты, соус бургер",
+		"food_value": {
+			"fats": "6,9",
+			"proteins": "7,5",
+			"carbohydrates": "23,72",
+			"kiloCalories": "188,6",
+			"weight": "470±50"
+		},
+		"culture_name": "ru-RU",
+		"product_image": {
+			"url": "https://dodopizza-a.akamaihd.net/static/Img/Products/Pizza/ru-RU/1626f452-b56a-46a7-ba6e-c2c2c9707466.jpg",
+			"height": 1875,
+			"width": 1875
+		},
+		"price": 395
+	},
+```
+Образец адресов (address.json)
+```
+[
+    {
+        "id": "00000351-0000-0000-0000-000000000000",
+        "alias": "Афимолл",
+        "address": {
+            "full": "Москва, набережная Пресненская дом 2",
+            "city": "Москва",
+            "street": "Пресненская",
+            "street_type": "набережная",
+            "building": "2"
+        },
+        "coordinates": {
+            "lat": "55.749299",
+            "lon": "37.539644"
+        }
+    },
+```
 
 5. Запустить бота  
 ```
