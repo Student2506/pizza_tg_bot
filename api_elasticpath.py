@@ -17,7 +17,7 @@ def get_token(url, client_id, client_secret=None):
     if SITE_TOKEN and SITE_TOKEN_LIFETIME < datetime.datetime.timestamp(now):
         return SITE_TOKEN
     else:
-        if client_secret is None:
+        if not client_secret:
             data = {
                 'client_id': client_id,
                 'grant_type': 'implicit'

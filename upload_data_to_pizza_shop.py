@@ -75,7 +75,7 @@ def main(address, menu):
         client_id,
         client_secret=os.getenv('PIZZA_SHOP_CLIENT_SECRET', None)
     )
-    if address is not None:
+    if address:
         flow = create_flow(
             'https://api.moltin.com/v2/flows',
             access_token,
@@ -118,7 +118,7 @@ def main(address, menu):
             )
             response.raise_for_status()
 
-    if menu is not None:
+    if menu:
         menu = json.load(menu)
         for item in menu:
             product = {

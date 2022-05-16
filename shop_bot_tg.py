@@ -315,13 +315,11 @@ def handle_waiting(update: Update, context: CallbackContext) -> None:
     logger.debug('Handle waiting')
     location = update.message.location
     users_reply = update.message.text
-    if location is not None:
-        logger.debug(location)
-    if users_reply is not None:
+    if users_reply:
         yandex_api_key = os.getenv('PIZZA_SHOP_YA_TOKEN')
         location = fetch_coordinates(yandex_api_key, users_reply)
         logger.debug(location)
-    if location is not None:
+    if location:
         current_position = location.latitude, location.longitude
     else:
         update.message.reply_text(
@@ -656,7 +654,7 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
 
 def get_database_connection():
     global _database
-    if _database is None:
+    if not _database:
         database_password = os.getenv("PIZZA_SHOP_DATABASE_PASSWORD")
         database_host = os.getenv("PIZZA_SHOP_DATABASE_HOST")
         database_port = os.getenv("PIZZA_SHOP_DATABASE_PORT")
