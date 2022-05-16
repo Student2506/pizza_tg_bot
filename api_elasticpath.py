@@ -118,23 +118,6 @@ def get_cart_products(url, access_token, client_id):
     return response.json()
 
 
-def create_customer_record(url, access_token, user, email):
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-    }
-    json_data = {
-        'data': {
-            'type': 'customer',
-            'name': user,
-            'email': email,
-        }
-    }
-    logger.debug(json_data)
-    response = requests.post(url, headers=headers, json=json_data)
-    response.raise_for_status()
-    return response.json()
-
-
 def get_pizzeries_coordinates(url, access_token):
     headers = {
         'Authorization': f'Bearer {access_token}',

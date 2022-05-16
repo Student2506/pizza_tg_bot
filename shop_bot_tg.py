@@ -13,8 +13,7 @@ from telegram.ext import ShippingQueryHandler, Updater
 from telegram.utils.helpers import escape_markdown
 
 from api_elasticpath import add_proudct_to_cart, create_customer_address
-from api_elasticpath import create_customer_record, get_cart
-from api_elasticpath import get_cart_products, get_catalog
+from api_elasticpath import get_cart, get_cart_products, get_catalog
 from api_elasticpath import get_customer_address, get_pizzeries_coordinates
 from api_elasticpath import get_product_detail, get_product_picture_url
 from api_elasticpath import get_token, remove_products_from_cart
@@ -512,27 +511,6 @@ def get_closest_pizzeria(coords, pizzeries):
     return min(pizzeria_distances, key=get_pizzeriza_range)
 
 
-def waiting_email(update: Update, context: CallbackContext) -> None:
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
-    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
-    access_token = get_token(
-        'https://api.moltin.com/oauth/access_token',
-        client_id
-    )
-    user_to_order = (
-        f'{update.effective_user.last_name} {update.effective_user.first_name}'
-    )
-    logger.debug(user_to_order)
-    create_customer_record(
-        'https://api.moltin.com/v2/customers',
-        access_token,
-        user_to_order,
-        users_reply
-    )
-    return "START"
-
-
 def remind_to_give_feedback(context: CallbackContext):
     message = '''
         Приятного аппетита! *место для рекламы*
@@ -641,7 +619,6 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
-        'WAITING_EMAIL': waiting_email,
         'HANDLE_WAITING': handle_waiting,
         'HANDLE_DELIVERY': handle_delivery,
         'PAYMENT': start_with_shipping_callback,
