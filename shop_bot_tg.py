@@ -585,9 +585,7 @@ def start_with_shipping_callback(
 
 def shipping_callback(update: Update, context: CallbackContext) -> None:
     query = update.shipping_query
-    # check the payload, is this from your bot?
     if query.invoice_payload != 'Custom-Payload':
-        # answer False pre_checkout_query
         context.bot.answer_shipping_query(
             shipping_query_id=query.id, ok=False,
             error_message="Something went wrong..."
@@ -596,24 +594,18 @@ def shipping_callback(update: Update, context: CallbackContext) -> None:
     else:
         options = list()
         delivery = context.user_data.get('delivery')
-        # a single LabeledPrice
         options.append(
             ShippingOption(
                 '1', 'Доставка', [LabeledPrice('delivery', delivery * 100)]
             )
         )
-        # an array of LabeledPrice objects
-        # price_list = [LabeledPrice('B1', 150), LabeledPrice('B2', 200)]
-        # options.append(ShippingOption('2', 'Shipping Option B', price_list))
         context.bot.answer_shipping_query(shipping_query_id=query.id, ok=True,
                                           shipping_options=options)
 
 
 def precheckout_callback(update: Update, context: CallbackContext) -> None:
     query = update.pre_checkout_query
-    # check the payload, is this from your bot?
     if query.invoice_payload != 'Custom-Payload':
-        # answer False pre_checkout_query
         context.bot.answer_pre_checkout_query(
             pre_checkout_query_id=query.id, ok=False,
             error_message="Something went wrong...")
