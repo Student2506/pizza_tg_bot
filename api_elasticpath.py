@@ -20,8 +20,10 @@ def get_token(url, client_id, client_secret=None):
             f'{datetime.datetime.fromtimestamp(SITE_TOKEN_LIFETIME)}'
         )
     if SITE_TOKEN and SITE_TOKEN_LIFETIME < datetime.datetime.timestamp(now):
+        logger.debug(f'Getting old token {SITE_TOKEN}')
         return SITE_TOKEN
     else:
+        logger.debug('Requesting new token')
         if not client_secret:
             data = {
                 'client_id': client_id,
