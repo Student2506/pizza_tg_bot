@@ -24,7 +24,7 @@ def get_token(url, client_id, client_secret=None):
         return SITE_TOKEN
     else:
         logger.debug('Requesting new token')
-        logger.debut(f'Old token: {SITE_TOKEN}')
+        logger.debug(f'Old token: {SITE_TOKEN}')
         if not client_secret:
             data = {
                 'client_id': client_id,
