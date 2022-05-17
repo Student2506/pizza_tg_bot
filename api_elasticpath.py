@@ -24,6 +24,7 @@ def get_token(url, client_id, client_secret=None):
         return SITE_TOKEN
     else:
         logger.debug('Requesting new token')
+        logger.debut(f'Old token: {SITE_TOKEN}')
         if not client_secret:
             data = {
                 'client_id': client_id,
@@ -40,6 +41,7 @@ def get_token(url, client_id, client_secret=None):
         token = response.json()
         SITE_TOKEN_LIFETIME = token.get('expires')
         SITE_TOKEN = token.get('access_token')
+        logger.debug(f'New token: {SITE_TOKEN}')
 
     return SITE_TOKEN
 
