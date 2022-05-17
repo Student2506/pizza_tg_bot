@@ -180,7 +180,7 @@ def handle_description(update: Update, context: CallbackContext) -> str:
             str(update.effective_user.id)
         )
         logger.debug(f'added products: {cart}')
-        return
+        return 'HANDLE_DESCRIPTION'
 
     products = get_cart_products(
         'https://api.moltin.com/v2/carts/',
