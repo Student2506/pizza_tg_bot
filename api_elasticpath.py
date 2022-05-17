@@ -15,7 +15,8 @@ def get_token(url, client_id, client_secret=None):
     global SITE_TOKEN_LIFETIME
     now = datetime.datetime.now()
     logger.debug(
-        f'Time is now: {now} and token valid until: {SITE_TOKEN_LIFETIME}'
+        f'Time is now: {now} and token valid until: '
+        f'{datetime.fromtimestamp(SITE_TOKEN_LIFETIME)}'
     )
     if SITE_TOKEN and SITE_TOKEN_LIFETIME < datetime.datetime.timestamp(now):
         return SITE_TOKEN
