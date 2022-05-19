@@ -6,6 +6,9 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 
+from api_elasticpath import get_catalog, get_product_detail
+from api_elasticpath import get_product_picture_url, get_token
+
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
@@ -73,22 +76,47 @@ def send_message(recipient_id, message_text):
 
 
 def send_menu(recipient_id, message_text):
-    category_buttons = [
-        {
-            'type': 'postback',
-            'title': 'Тут будет кнопка',
-            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-        },
-    ]
-
-    pizzas = [
-        {
-            'title': 'Заголовок',
-            'subtitle': 'Описание',
-            'buttons': category_buttons,
-        }
-    ]
-    logger.debug(pizzas)
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    logger.debug(f'Client_id: {client_id}')
+    access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id
+    )
+    goods = get_catalog(
+        'https://api.moltin.com/v2/products/',
+        access_token
+    )
+    pizzas = []
+    for pizza in goods[0].get('relationships').get('products').get('data'):
+        full_pizza = get_product_detail(
+            'https://api.moltin.com/v2/products/',
+            pizza.get('id'),
+            access_token
+        )
+        picture_url = get_product_picture_url(
+            'https://api.moltin.com/v2/files/',
+            full_pizza.get('relationships').get('main_image').get('data').get(
+                'id'
+            ),
+            access_token
+        )
+        pizzas.append(
+            {
+                'title': (
+                    f"{full_pizza.get('name')} "
+                    f"({full_pizza.get('price')[0].get('amount')} руб.)"
+                ),
+                'image_url': picture_url,
+                'subtitle': full_pizza.get('description'),
+                'buttons': [
+                    {
+                        'type': 'postback',
+                        'title': 'Добавить в корзину',
+                        'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                    },
+                ],
+            }
+        )
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
