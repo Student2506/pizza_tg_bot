@@ -10,6 +10,7 @@ from flask import Flask, request
 from api_elasticpath import get_catalog, get_product_detail
 from api_elasticpath import get_product_picture_url
 from api_elasticpath import get_products_by_category_slug, get_token
+from database_backend import get_database_connection
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -21,6 +22,24 @@ app = Flask(__name__)
 
 LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
 CATEGORY_LOGO_ID = 'b3f6ee38-ce6e-4273-8ead-ef103327b44b'
+
+
+def handle_users_reply(sender_id, message_text):
+    DATABASE = get_database_connection()
+    states_functions = {
+        'START': handle_start,
+    }
+    recorded_state = DATABASE.get(sender_id)
+    if (not recorded_state
+            or recorded_state.decode('utf-8') not in states_functions.keys()):
+        user_state = 'START'
+    else:
+        user_state = recorded_state.decode('utf-8')
+    if message_text == '/start':
+        user_state = 'START'
+    state_handler = states_functions[user_state]
+    next_state = state_handler(sender_id, message_text)
+    DATABASE.set(sender_id, next_state)
 
 
 @app.route('/', methods=['GET'])
@@ -50,15 +69,12 @@ def webhook():
     if data["object"] == "page":
         for entry in data["entry"]:
             for messaging_event in entry["messaging"]:
-                # someone sent us a message
                 if messaging_event.get("message"):
-                    # the facebook ID of the person sending you the message
                     sender_id = messaging_event["sender"]["id"]
-                    # the recipient's ID, which should be your page's FB ID
-                    # recipient_id = messaging_event["recipient"]["id"]
-                    # the message's text
+                    recipient_id = messaging_event["recipient"]["id"]
                     message_text = messaging_event["message"]["text"]
-                    send_message(sender_id, message_text)
+
+                    handle_users_reply(sender_id, message_text)
     return "ok", 200
 
 
@@ -80,7 +96,7 @@ def send_message(recipient_id, message_text):
     response.raise_for_status()
 
 
-def send_menu(recipient_id, message_text):
+def handle_start(recipient_id, message_text):
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
     access_token = get_token(

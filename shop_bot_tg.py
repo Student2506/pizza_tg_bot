@@ -2,7 +2,6 @@ import logging
 import os
 from textwrap import dedent
 
-import redis
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram import ParseMode, ShippingOption, Update
@@ -17,9 +16,9 @@ from api_elasticpath import get_customer_address, get_pizzeries_coordinates
 from api_elasticpath import get_product_detail, get_product_picture_url
 from api_elasticpath import get_token, remove_products_from_cart
 from api_yandex import fetch_coordinates
+from database_backend import get_database_connection
 from pizzeria import calculate_distance_and_price, get_closest_pizzeria
 
-_database = None
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 FEEDBACK_TIMER = 3600
@@ -562,18 +561,6 @@ def handle_users_reply(update: Update, context: CallbackContext) -> None:
         db.set(chat_id, next_state)
     except Exception as err:
         logger.error(err)
-
-
-def get_database_connection():
-    global _database
-    if not _database:
-        database_password = os.getenv("PIZZA_SHOP_DATABASE_PASSWORD")
-        database_host = os.getenv("PIZZA_SHOP_DATABASE_HOST")
-        database_port = os.getenv("PIZZA_SHOP_DATABASE_PORT")
-        _database = redis.Redis(
-            host=database_host, port=database_port, password=database_password
-        )
-    return _database
 
 
 def main():
