@@ -39,7 +39,7 @@ def webhook():
                     # the facebook ID of the person sending you the message
                     sender_id = messaging_event["sender"]["id"]
                     # the recipient's ID, which should be your page's FB ID
-                    recipient_id = messaging_event["recipient"]["id"]
+                    # recipient_id = messaging_event["recipient"]["id"]
                     # the message's text
                     message_text = messaging_event["message"]["text"]
                     send_message(sender_id, message_text)
