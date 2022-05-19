@@ -1,5 +1,6 @@
 import datetime
 import logging
+import urllib.parse
 
 import requests
 
@@ -183,4 +184,32 @@ def get_customer_address(url, access_token, id):
 
     response = requests.get(f'{url}/{id}', headers=headers)
     response.raise_for_status()
+    return response.json().get('data')
+
+
+def get_products_by_category_id(url, access_token, id):
+    filter_string = urllib.parse.quote_plus(f'eq(category.id,{id})')
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+    }
+    params = {
+        'filter': filter_string,
+    }
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    logger.debug(response.json().get('data'))
+    return response.json().get('data')
+
+
+def get_products_by_category_slug(url, access_token, slug):
+    filter_string = urllib.parse.quote_plus(f'eq(slug,{slug})')
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+    }
+    params = {
+        'filter': filter_string,
+    }
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    logger.debug(response.json().get('data'))
     return response.json().get('data')

@@ -1,13 +1,15 @@
 import json
 import logging
 import os
+import random
 
 import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 
 from api_elasticpath import get_catalog, get_product_detail
-from api_elasticpath import get_product_picture_url, get_token
+from api_elasticpath import get_product_picture_url
+from api_elasticpath import get_products_by_category_slug, get_token
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -16,6 +18,9 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
 app = Flask(__name__)
+
+LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
+CATEGORY_LOGO_ID = 'b3f6ee38-ce6e-4273-8ead-ef103327b44b'
 
 
 @app.route('/', methods=['GET'])
@@ -82,16 +87,18 @@ def send_menu(recipient_id, message_text):
         'https://api.moltin.com/oauth/access_token',
         client_id
     )
-    goods = get_catalog(
-        'https://api.moltin.com/v2/products/',
-        access_token
+    logger.debug(f'access_token: {access_token}')
+    goods = get_products_by_category_slug(
+        'https://api.moltin.com/v2/categories',
+        access_token,
+        'front_page'
     )
+    logger.debug(f'Front page category: {goods}')
     picture_url = get_product_picture_url(
         'https://api.moltin.com/v2/files/',
         LOGO_ID,
         access_token
     )
-
     pizzas = [
         {
             'title': 'Меню',
@@ -146,6 +153,34 @@ def send_menu(recipient_id, message_text):
                 ],
             }
         )
+    picture_url = get_product_picture_url(
+        'https://api.moltin.com/v2/files/',
+        CATEGORY_LOGO_ID,
+        access_token
+    )
+    categories = get_catalog(
+        'https://api.moltin.com/v2/categories',
+        access_token
+    )
+    logger.debug(categories)
+    category_buttons = [
+        {
+            'type': 'postback',
+            'title': category.get('name'),
+            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+        } for category in categories.get('data')[:-1]
+    ]
+    logger.debug(f'Categroy_buttons {category_buttons}')
+    pizzas.append(
+        {
+            'title': 'Не нашли нужную пиццу?',
+            'image_url': picture_url,
+            'subtitle':
+                'Остальные пиццы можно посмотреть в одной из категорий',
+            'buttons': random.sample(category_buttons, 3),
+        }
+    )
+    logger.debug(pizzas)
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
