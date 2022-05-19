@@ -86,7 +86,36 @@ def send_menu(recipient_id, message_text):
         'https://api.moltin.com/v2/products/',
         access_token
     )
-    pizzas = []
+    picture_url = get_product_picture_url(
+        'https://api.moltin.com/v2/files/',
+        LOGO_ID,
+        access_token
+    )
+
+    pizzas = [
+        {
+            'title': 'Меню',
+            'image_url': picture_url,
+            'subtitle': 'Здесь вы можете выбрать один из вариантов',
+            'buttons': [
+                {
+                    'type': 'postback',
+                    'title': 'Корзина',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+                {
+                    'type': 'postback',
+                    'title': 'Акции',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+                {
+                    'type': 'postback',
+                    'title': 'Сделать заказ',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+            ],
+        }
+    ]
     for pizza in goods[0].get('relationships').get('products').get('data'):
         full_pizza = get_product_detail(
             'https://api.moltin.com/v2/products/',
