@@ -1,8 +1,16 @@
 import json
+import logging
 import os
 
 import requests
+from dotenv import load_dotenv
 from flask import Flask, request
+
+logger = logging.getLogger(__name__)
+FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+load_dotenv()
+logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
 app = Flask(__name__)
 
@@ -60,6 +68,50 @@ def send_message(recipient_id, message_text):
     response = requests.post(
         "https://graph.facebook.com/v2.6/me/messages",
         params=params, headers=headers, data=request_content
+    )
+    response.raise_for_status()
+
+
+def send_menu(recipient_id, message_text):
+    category_buttons = [
+        {
+            'type': 'postback',
+            'title': 'Тут будет кнопка',
+            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+        },
+    ]
+
+    pizzas = [
+        {
+            'title': 'Заголовок',
+            'subtitle': 'Описание',
+            'buttons': category_buttons,
+        }
+    ]
+    logger.debug(pizzas)
+    params = {
+        'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
+    }
+    json_data = {
+        'recipient': {
+            'id': recipient_id,
+        },
+        'message': {
+            'attachment': {
+                'type': 'template',
+                'payload': {
+                    'template_type': 'generic',
+                    'image_aspect_ratio': 'square',
+                    'elements': pizzas,
+                },
+            },
+        },
+    }
+    logger.debug(json_data)
+    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    response = requests.post(
+        "https://graph.facebook.com/v2.6/me/messages",
+        params=params, json=json_data
     )
     response.raise_for_status()
 
