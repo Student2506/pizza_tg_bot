@@ -166,6 +166,7 @@ def send_menu(recipient_id, message_text):
         'https://api.moltin.com/v2/categories',
         access_token
     )
+    logger.debug(categories)
     category_buttons = [
         {
             'type': 'postback',
@@ -173,11 +174,14 @@ def send_menu(recipient_id, message_text):
             'payload': 'DEVELOPER_DEFINED_PAYLOAD',
         } for category in categories.get('data')
     ]
+    logger.debug(f'Categroy_buttons {category_buttons}')
     pizzas.append(
         {
             'title': 'Не нашли нужную пиццу?',
             'image_url': picture_url,
-            'subtitle': 'Остальные пиццы можно посмотреть в одной из категорий',
+            'subtitle':
+                'Остальные пиццы можно посмотреть в одной из категорий',
+            'buttons': category_buttons[:3],
         }
     )
     logger.debug(pizzas)
