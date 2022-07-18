@@ -73,8 +73,7 @@ def webhook():
                     sender_id = messaging_event["sender"]["id"]
                     recipient_id = messaging_event["recipient"]["id"]
                     message_text = messaging_event["message"]["text"]
-
-                    handle_users_reply(sender_id, message_text)
+                    send_menu(sender_id, message_text)
     return "ok", 200
 
 
@@ -220,6 +219,24 @@ def handle_start(recipient_id, message_text):
     response = requests.post(
         "https://graph.facebook.com/v2.6/me/messages",
         params=params, json=json_data
+    )
+    response.raise_for_status()
+
+
+def send_menu(recipient_id, message_text):
+    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    # headers = {"Content-Type": "application/json"}
+    request_content = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "text": message_text
+        }
+    }
+    response = requests.post(
+        "https://graph.facebook.com/v2.6/me/messages",
+        params=params, json=request_content
     )
     response.raise_for_status()
 
