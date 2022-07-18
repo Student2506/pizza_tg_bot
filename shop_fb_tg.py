@@ -7,6 +7,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 
+from api_elasticpath import add_proudct_to_cart, get_cart, get_cart_products
 from api_elasticpath import get_catalog, get_product_detail
 from api_elasticpath import get_product_picture_url
 from api_elasticpath import get_products_by_category_slug, get_token
@@ -24,16 +25,11 @@ LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
 CATEGORY_LOGO_ID = 'b3f6ee38-ce6e-4273-8ead-ef103327b44b'
 
 
-def handle_menu(sender_id, message_text):
-    logger.debug(f'Sender: {sender_id}\nMessage_text: {message_text}')
-    return 'HANDLE_MENU'
-
-
 def handle_users_reply(sender_id, message_text):
     DATABASE = get_database_connection()
     states_functions = {
         'START': handle_start,
-        'HANDLE_MENU': handle_start,
+        'HANDLE_MENU': handle_order,
     }
     recorded_state = DATABASE.get(f'facebook_{sender_id}')
     # logger.debug(f'State: {recorded_state}')
@@ -45,7 +41,7 @@ def handle_users_reply(sender_id, message_text):
     if message_text == '/start':
         user_state = 'START'
     logger.debug(f'User_state: {user_state}')
-    logger.debug(f'Recoreded: {recorded_state.decode("utf-8")}')
+    # logger.debug(f'Recoreded: {recorded_state.decode("utf-8")}')
     state_handler = states_functions[user_state]
     next_state = state_handler(sender_id, message_text)
     DATABASE.set(f'facebook_{sender_id}', next_state)
@@ -117,12 +113,60 @@ def send_message(recipient_id, message_text):
     response.raise_for_status()
 
 
+def handle_order(recipien_id, message_text):
+    pass
+
+
 def handle_start(recipient_id, message_text):
     logger.debug(f'Handle start - {message_text}')
+
     if message_text == '/start':
+        message_text_string = dict()
         menu = 'front_page'
     else:
-        menu = message_text
+        try:
+            message_text_string = json.loads(message_text)
+            logger.debug(f'Handle start JSON: {message_text_string}')
+        except json.decoder.JSONDecodeError:
+            logger.debug(f'Error: {message_text}')
+            return 'START'
+
+    if message_text_string.get('category', None):
+        menu = message_text_string.get('category')
+    elif message_text_string.get('add_to_basket', None):
+        # Adding to basket
+        logger.debug(
+            "And add to basket:"
+            f"{message_text_string.get('add_to_basket', None)}"
+        )
+        client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+        access_token = get_token(
+            'https://api.moltin.com/oauth/access_token',
+            client_id
+        )
+        cart = get_cart(
+            'https://api.moltin.com/v2/carts/',
+            access_token,
+            str(recipient_id)
+        )
+        cart = add_proudct_to_cart(
+            'https://api.moltin.com/v2/carts/',
+            message_text_string.get('add_to_basket', None),
+            1,
+            access_token,
+            str(recipient_id)
+        )
+        products = get_cart_products(
+            'https://api.moltin.com/v2/carts/',
+            access_token,
+            str(recipient_id)
+        )
+        logger.debug(products)
+        return 'START'
+    # else:
+    #     logger.debug('BASKET')
+    #     return 'HANDLE_MENU'
+
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
     access_token = get_token(
@@ -150,7 +194,9 @@ def handle_start(recipient_id, message_text):
                 {
                     'type': 'postback',
                     'title': 'Корзина',
-                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                    'payload': json.dumps(
+                        {'basket': recipient_id}
+                    ),
                 },
                 {
                     'type': 'postback',
@@ -190,7 +236,9 @@ def handle_start(recipient_id, message_text):
                     {
                         'type': 'postback',
                         'title': 'Добавить в корзину',
-                        'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                        'payload': json.dumps(
+                            {"add_to_basket": full_pizza.get('id')}
+                        ),
                     },
                 ],
             }
@@ -209,7 +257,7 @@ def handle_start(recipient_id, message_text):
         {
             'type': 'postback',
             'title': category.get('name'),
-            'payload': category.get('slug'),
+            'payload': json.dumps({"category": category.get('slug')}),
         } for category in categories.get('data')
     ]
     logger.debug(f'Categroy_buttons {category_buttons}')
@@ -248,7 +296,7 @@ def handle_start(recipient_id, message_text):
         params=params, json=json_data
     )
     response.raise_for_status()
-    return 'HANDLE_MENU'
+    return 'START'
 
 
 if __name__ == '__main__':
