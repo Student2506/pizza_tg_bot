@@ -73,7 +73,124 @@ def verify():
 @app.route('/update', methods=['POST'])
 def update_webhook():
     data = request.get_json()
-    logger.debug(data)
+    logger.debug(f'findme {data}')
+
+    database = Database(
+        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    )
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    logger.debug(f'Client_id: {client_id}')
+    access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id
+    )
+    logger.debug(f'access_token: {access_token}')
+    categories = get_catalog(
+        'https://api.moltin.com/v2/categories',
+        access_token
+    )
+    menus = [category.get("slug") for category in categories.get("data")]
+    logger.debug(
+        'Our current categories: '
+        f'{menus}')
+    for menu in menus:
+        goods = get_products_by_category_slug(
+            'https://api.moltin.com/v2/categories',
+            access_token,
+            menu
+        )
+        logger.debug(f'Front page category: {goods}')
+        picture_url = get_product_picture_url(
+            'https://api.moltin.com/v2/files/',
+            LOGO_ID,
+            access_token
+        )
+        pizzas = [
+            {
+                'title': 'Меню',
+                'image_url': picture_url,
+                'subtitle': 'Здесь вы можете выбрать один из вариантов',
+                'buttons': [
+                    {
+                        'type': 'postback',
+                        'title': 'Корзина',
+                        'payload': json.dumps(
+                            {'basket': 'recipient_id'}
+                        ),
+                    },
+                    {
+                        'type': 'postback',
+                        'title': 'Акции',
+                        'payload': json.dumps({"category": 'front_page'}),
+                    },
+                    {
+                        'type': 'postback',
+                        'title': 'Сделать заказ',
+                        'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                    },
+                ],
+            }
+        ]
+        for pizza in goods[0].get('relationships').get('products').get('data'):
+            full_pizza = get_product_detail(
+                'https://api.moltin.com/v2/products/',
+                pizza.get('id'),
+                access_token
+            )
+            picture_url = get_product_picture_url(
+                'https://api.moltin.com/v2/files/',
+                full_pizza.get('relationships').get('main_image').get(
+                    'data'
+                ).get(
+                    'id'
+                ),
+                access_token
+            )
+            pizzas.append(
+                {
+                    'title': (
+                        f"{full_pizza.get('name')} "
+                        f"({full_pizza.get('price')[0].get('amount')} руб.)"
+                    ),
+                    'image_url': picture_url,
+                    'subtitle': full_pizza.get('description'),
+                    'buttons': [
+                        {
+                            'type': 'postback',
+                            'title': 'Добавить в корзину',
+                            'payload': json.dumps(
+                                {"add_to_basket": full_pizza.get('id')}
+                            ),
+                        },
+                    ],
+                }
+            )
+        picture_url = get_product_picture_url(
+            'https://api.moltin.com/v2/files/',
+            CATEGORY_LOGO_ID,
+            access_token
+        )
+
+        category_buttons = [
+            {
+                'type': 'postback',
+                'title': category.get('name'),
+                'payload': json.dumps({"category": category.get('slug')}),
+            } for category in categories.get('data')
+        ]
+        logger.debug(f'Categroy_buttons {category_buttons}')
+        pizzas.append(
+            {
+                'title': 'Не нашли нужную пиццу?',
+                'image_url': picture_url,
+                'subtitle':
+                    'Остальные пиццы можно посмотреть в одной из категорий',
+                'buttons': random.sample(category_buttons, 3),
+            }
+        )
+        database.set_(menu, json.dumps(pizzas))
     return 'ok', 200
 
 
@@ -265,117 +382,16 @@ def send_menu(menu, recipient_id):
         database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
         database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
     )
-    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
-    logger.debug(f'Client_id: {client_id}')
-    access_token = get_token(
-        'https://api.moltin.com/oauth/access_token',
-        client_id
-    )
-    logger.debug(f'access_token: {access_token}')
-    goods = get_products_by_category_slug(
-        'https://api.moltin.com/v2/categories',
-        access_token,
-        menu
-    )
-    logger.debug(f'Front page category: {goods}')
-    picture_url = get_product_picture_url(
-        'https://api.moltin.com/v2/files/',
-        LOGO_ID,
-        access_token
-    )
-    pizzas = [
-        {
-            'title': 'Меню',
-            'image_url': picture_url,
-            'subtitle': 'Здесь вы можете выбрать один из вариантов',
-            'buttons': [
-                {
-                    'type': 'postback',
-                    'title': 'Корзина',
-                    'payload': json.dumps(
-                        {'basket': recipient_id}
-                    ),
-                },
-                {
-                    'type': 'postback',
-                    'title': 'Акции',
-                    'payload': json.dumps({"category": 'front_page'}),
-                },
-                {
-                    'type': 'postback',
-                    'title': 'Сделать заказ',
-                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-                },
-            ],
-        }
-    ]
-    for pizza in goods[0].get('relationships').get('products').get('data'):
-        full_pizza = get_product_detail(
-            'https://api.moltin.com/v2/products/',
-            pizza.get('id'),
-            access_token
-        )
-        picture_url = get_product_picture_url(
-            'https://api.moltin.com/v2/files/',
-            full_pizza.get('relationships').get('main_image').get('data').get(
-                'id'
-            ),
-            access_token
-        )
-        pizzas.append(
-            {
-                'title': (
-                    f"{full_pizza.get('name')} "
-                    f"({full_pizza.get('price')[0].get('amount')} руб.)"
-                ),
-                'image_url': picture_url,
-                'subtitle': full_pizza.get('description'),
-                'buttons': [
-                    {
-                        'type': 'postback',
-                        'title': 'Добавить в корзину',
-                        'payload': json.dumps(
-                            {"add_to_basket": full_pizza.get('id')}
-                        ),
-                    },
-                ],
-            }
-        )
-    picture_url = get_product_picture_url(
-        'https://api.moltin.com/v2/files/',
-        CATEGORY_LOGO_ID,
-        access_token
-    )
-    categories = get_catalog(
-        'https://api.moltin.com/v2/categories',
-        access_token
-    )
-    logger.debug(
-        'Our current categories: '
-        f'{[category.get("slug") for category in categories.get("data")]}')
-    category_buttons = [
-        {
-            'type': 'postback',
-            'title': category.get('name'),
-            'payload': json.dumps({"category": category.get('slug')}),
-        } for category in categories.get('data')
-    ]
-    logger.debug(f'Categroy_buttons {category_buttons}')
-    pizzas.append(
-        {
-            'title': 'Не нашли нужную пиццу?',
-            'image_url': picture_url,
-            'subtitle':
-                'Остальные пиццы можно посмотреть в одной из категорий',
-            'buttons': random.sample(category_buttons, 3),
-        }
-    )
-    database.set_(menu, json.dumps(pizzas))
-    logger.debug(f'Send CATEGORY {menu} CONTENT: {pizzas}')
+
+    # logger.debug(f'Send CATEGORY {menu} CONTENT: {pizzas}')
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
-    pizzas_new = database.get(menu).decode('utf-8')
+    pizzas_new = json.loads(database.get(menu).decode('utf-8'))
+    pizzas_new[0]['buttons'][0]['payload'] = json.dumps(
+        {'basket': recipient_id}
+    )
+
     logger.debug(f'send_menu retrive menu: {json.dumps(pizzas_new)}')
     json_data = {
         'recipient': {
