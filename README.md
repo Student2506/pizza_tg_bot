@@ -100,5 +100,6 @@ python shop_bot_tg.py
 gunicorn --log-file=- app:app 
 ```
 
-[Пример бота](https://t.me/pizzeria_student83_bot)  
+[Пример телеграм-бота](https://t.me/pizzeria_student83_bot)  
+[Пример facebook-бота](https://www.facebook.com/pizzeria.student83.bot/)
  
