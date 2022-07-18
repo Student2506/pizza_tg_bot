@@ -224,21 +224,55 @@ def handle_start(recipient_id, message_text):
 
 
 def send_menu(recipient_id, message_text):
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id
+    )
+    logger.debug(f'access_token: {access_token}')
+    goods = get_catalog('https://api.moltin.com/v2/products', access_token)
+    logger.debug(f'goods: {goods}')
+    params = {
+        'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
+    }
+    json_data = {
+        'recipient': {
+            'id': recipient_id,
+        },
+        'message': {
+            'attachment': {
+                'type': 'template',
+                'payload': {
+                    'template_type': 'button',
+                    'text': 'Try the postback button!',
+                    'buttons': [
+                        {
+                            'type': 'postback',
+                            'title': 'Postback Button',
+                            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                        },
+                    ],
+                },
+            },
+         },
+    }
     params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
     # headers = {"Content-Type": "application/json"}
-    request_content = {
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message_text
-        }
-    }
+    # request_content = {
+    #     "recipient": {
+    #         "id": recipient_id
+    #     },
+    #     "message": {
+    #         "text": message_text
+    #     }
+    # }
     response = requests.post(
-        "https://graph.facebook.com/v2.6/me/messages",
-        params=params, json=request_content
-    )
+         "https://graph.facebook.com/v2.6/me/messages",
+
+        params=params, json=json_data
+     )
     response.raise_for_status()
+ 
 
 
 if __name__ == '__main__':
