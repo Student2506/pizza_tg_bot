@@ -84,6 +84,25 @@ def send_menu(recipient_id, message_text):
     logger.debug(f'access_token: {access_token}')
     goods = get_catalog('https://api.moltin.com/v2/products', access_token)
     logger.debug(f'goods: {goods}')
+    pizzas = []
+    for pizza in goods.get('data')[:5]:
+        pizzas.append(
+            {
+                'title': (
+                    f"{pizza.get('name')} "
+                    f"({pizza.get('price').get('amount')} руб.)"
+                ),
+                'subtitle': pizza.get('description'),
+                'buttons': [
+                    {
+                        'type': 'postback',
+                        'title': 'Добавить в корзину',
+                        'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                    },
+                ],
+            }
+        )
+    logger.debug(pizzas)
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
@@ -96,19 +115,7 @@ def send_menu(recipient_id, message_text):
                 'type': 'template',
                 'payload': {
                     'template_type': 'generic',
-                    'elements': [
-                        {
-                            'title': 'Заголовок',
-                            'subtitle': 'Описание',
-                            'buttons': [
-                                {
-                                    'type': 'postback',
-                                    'title': 'Тут будет кнопка',
-                                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-                                },
-                            ],
-                        }
-                    ]
+                    'elements': pizzas,
                 },
             },
         },
