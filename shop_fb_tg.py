@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 
 import requests
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ from flask import Flask, request
 from api_elasticpath import get_catalog, get_product_detail
 from api_elasticpath import get_product_picture_url
 from api_elasticpath import get_products_by_category_slug, get_token
+from database_backend import get_database_connection
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -17,8 +19,36 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
 app = Flask(__name__)
+
 LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
 CATEGORY_LOGO_ID = 'b3f6ee38-ce6e-4273-8ead-ef103327b44b'
+
+
+def handle_menu(sender_id, message_text):
+    logger.debug(f'Sender: {sender_id}\nMessage_text: {message_text}')
+    return 'HANDLE_MENU'
+
+
+def handle_users_reply(sender_id, message_text):
+    DATABASE = get_database_connection()
+    states_functions = {
+        'START': handle_start,
+        'HANDLE_MENU': handle_menu,
+    }
+    recorded_state = DATABASE.get(sender_id)
+    # logger.debug(f'State: {recorded_state}')
+    if (not recorded_state
+            or recorded_state.decode('utf-8') not in states_functions.keys()):
+        user_state = 'START'
+    else:
+        user_state = recorded_state.decode('utf-8')
+    if message_text == '/start':
+        user_state = 'START'
+    logger.debug(f'User_state: {user_state}')
+    logger.debug(f'Recoreded: {recorded_state.decode("utf-8")}')
+    state_handler = states_functions[user_state]
+    next_state = state_handler(sender_id, message_text)
+    DATABASE.set(sender_id, next_state)
 
 
 @app.route('/', methods=['GET'])
@@ -45,18 +75,27 @@ def webhook():
     Основной вебхук, на который будут приходить сообщения от Facebook.
     """
     data = request.get_json()
+    logger.debug(data)
     if data["object"] == "page":
+        logger.debug(f'Entry: {data["entry"]}')
         for entry in data["entry"]:
+            logger.debug(f'Messaging: {entry["messaging"]}')
             for messaging_event in entry["messaging"]:
-                # someone sent us a message
+                logger.debug(f'Event: {messaging_event.get("message")}')
                 if messaging_event.get("message"):
-                    # the facebook ID of the person sending you the message
                     sender_id = messaging_event["sender"]["id"]
-                    # the recipient's ID, which should be your page's FB ID
-                    # recipient_id = messaging_event["recipient"]["id"]
-                    # the message's text
+                    recipient_id = messaging_event["recipient"]["id"]
                     message_text = messaging_event["message"]["text"]
-                    send_menu(sender_id, message_text)
+                    logger.debug(
+                        f'Main webhook - sender: {sender_id},'
+                        f'message: {message_text}'
+                    )
+                    handle_users_reply(sender_id, message_text)
+                if messaging_event.get('postback'):
+                    sender_id = messaging_event["sender"]["id"]
+                    recipient_id = messaging_event["recipient"]["id"]
+                    message_text = messaging_event["postback"]["payload"]
+                    handle_users_reply(sender_id, message_text)
     return "ok", 200
 
 
@@ -78,7 +117,7 @@ def send_message(recipient_id, message_text):
     response.raise_for_status()
 
 
-def send_menu(recipient_id, message_text):
+def handle_start(recipient_id, message_text):
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
     access_token = get_token(
@@ -92,12 +131,6 @@ def send_menu(recipient_id, message_text):
         'front_page'
     )
     logger.debug(f'Front page category: {goods}')
-    # goods = get_products_by_category_id(
-    #     'https://api.moltin.com/v2/products',
-    #     access_token,
-    #     categories.id
-    # )
-    # logger.debug(f'goods: {goods}')
     picture_url = get_product_picture_url(
         'https://api.moltin.com/v2/files/',
         LOGO_ID,
@@ -171,8 +204,8 @@ def send_menu(recipient_id, message_text):
         {
             'type': 'postback',
             'title': category.get('name'),
-            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-        } for category in categories.get('data')
+            'payload': category.get('slug'),
+        } for category in categories.get('data')[:-1]
     ]
     logger.debug(f'Categroy_buttons {category_buttons}')
     pizzas.append(
@@ -181,7 +214,7 @@ def send_menu(recipient_id, message_text):
             'image_url': picture_url,
             'subtitle':
                 'Остальные пиццы можно посмотреть в одной из категорий',
-            'buttons': category_buttons[:3],
+            'buttons': random.sample(category_buttons, 3),
         }
     )
     logger.debug(pizzas)
@@ -210,6 +243,7 @@ def send_menu(recipient_id, message_text):
         params=params, json=json_data
     )
     response.raise_for_status()
+    return 'HANDLE_MENU'
 
 
 if __name__ == '__main__':
