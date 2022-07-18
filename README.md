@@ -8,7 +8,8 @@
 - Yandex Maps API  
 - Redis  
 - Elasticpath API
-- Telegram Payment
+- Telegram Payment  
+- Facebook  
 
 
 ## Инсталляция  
@@ -41,6 +42,10 @@ API Motlin
 
 Токен Yandex Карт
 - PIZZA_SHOP_YA_TOKEN=  
+
+Токены Facebook  
+- PIZZA_SHOP_FB_TOKEN  
+- PIZZA_SHOP_WEBHOOK_SHARED  
 
 4. Создать товары
 ```
@@ -89,9 +94,10 @@ upload_data_to_pizza_shop.py --address address.json --menu menu.json
     },
 ```
 
-5. Запустить бота  
+5. Запустить ботов  
 ```
 python shop_bot_tg.py  
+gunicorn --log-file=- app:app 
 ```
 
 [Пример бота](https://t.me/pizzeria_student83_bot)  
