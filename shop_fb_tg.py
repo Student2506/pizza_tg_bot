@@ -11,7 +11,8 @@ from api_elasticpath import add_proudct_to_cart, get_cart, get_cart_products
 from api_elasticpath import get_catalog, get_product_detail
 from api_elasticpath import get_product_picture_url
 from api_elasticpath import get_products_by_category_slug, get_token
-from database_backend import get_database_connection
+from api_elasticpath import remove_products_from_cart
+from database_backend import Database
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -23,16 +24,21 @@ app = Flask(__name__)
 
 LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
 CATEGORY_LOGO_ID = 'b3f6ee38-ce6e-4273-8ead-ef103327b44b'
+BASKET_LOGO_ID = '1e21b975-bd32-4cf1-9445-40ad420461f7'
 
 
 def handle_users_reply(sender_id, message_text):
-    DATABASE = get_database_connection()
+    database = Database(
+        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    )
     states_functions = {
         'START': handle_start,
         'HANDLE_MENU': handle_order,
     }
-    recorded_state = DATABASE.get(f'facebook_{sender_id}')
-    # logger.debug(f'State: {recorded_state}')
+    recorded_state = database.get(f'facebook_{sender_id}')
+    logger.debug(f'Handle users reply: recorded state - {recorded_state}')
     if (not recorded_state
             or recorded_state.decode('utf-8') not in states_functions.keys()):
         user_state = 'START'
@@ -41,10 +47,9 @@ def handle_users_reply(sender_id, message_text):
     if message_text == '/start':
         user_state = 'START'
     logger.debug(f'User_state: {user_state}')
-    # logger.debug(f'Recoreded: {recorded_state.decode("utf-8")}')
     state_handler = states_functions[user_state]
     next_state = state_handler(sender_id, message_text)
-    DATABASE.set(f'facebook_{sender_id}', next_state)
+    database.set_(f'facebook_{sender_id}', next_state)
 
 
 @app.route('/', methods=['GET'])
@@ -80,7 +85,7 @@ def webhook():
                 logger.debug(f'Event: {messaging_event.get("message")}')
                 if messaging_event.get("message"):
                     sender_id = messaging_event["sender"]["id"]
-                    recipient_id = messaging_event["recipient"]["id"]
+                    # recipient_id = messaging_event["recipient"]["id"]
                     message_text = messaging_event["message"]["text"]
                     logger.debug(
                         f'Main webhook - sender: {sender_id},'
@@ -89,7 +94,7 @@ def webhook():
                     handle_users_reply(sender_id, message_text)
                 if messaging_event.get('postback'):
                     sender_id = messaging_event["sender"]["id"]
-                    recipient_id = messaging_event["recipient"]["id"]
+                    # recipient_id = messaging_event["recipient"]["id"]
                     message_text = messaging_event["postback"]["payload"]
                     handle_users_reply(sender_id, message_text)
     return "ok", 200
@@ -113,8 +118,74 @@ def send_message(recipient_id, message_text):
     response.raise_for_status()
 
 
-def handle_order(recipien_id, message_text):
-    pass
+def handle_order(recipient_id, message_text):
+    logger.debug('=====Handle Order======')
+    logger.debug(f'Recipient: {recipient_id}')
+    logger.debug(f'Message: {message_text}')
+    message_text_string = json.loads(message_text)
+    logger.debug(f'Handle start JSON: {message_text_string}')
+    if message_text_string.get('category', None):
+        send_menu('front_page', recipient_id)
+        return 'START'
+    if message_text_string.get('remove_from_basket'):
+        product_to_remove = message_text_string.get('remove_from_basket')
+        client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+        access_token = get_token(
+            'https://api.moltin.com/oauth/access_token',
+            client_id
+        )
+        cart = get_cart(
+            'https://api.moltin.com/v2/carts/',
+            access_token,
+            str(recipient_id)
+        )
+        if cart:
+            remove_products_from_cart(
+                'https://api.moltin.com/v2/carts/',
+                product_to_remove,
+                access_token,
+                str(recipient_id)
+            )
+        get_basket_menu(recipient_id)
+        return 'HANDLE_MENU'
+    if message_text_string.get('add_to_basket', None):
+        logger.debug(message_text_string.get('add_to_basket', None))
+        client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+        access_token = get_token(
+            'https://api.moltin.com/oauth/access_token',
+            client_id
+        )
+        cart = get_cart(
+            'https://api.moltin.com/v2/carts/',
+            access_token,
+            str(recipient_id)
+        )
+        if cart:
+            add_proudct_to_cart(
+                'https://api.moltin.com/v2/carts/',
+                message_text_string.get('add_to_basket', None),
+                1,
+                access_token,
+                str(recipient_id)
+            )
+            json_data = {
+                'recipient': {
+                    'id': recipient_id,
+                },
+                'message': {
+                    'text': 'Пицца добавлена в корзину'
+                }
+            }
+            logger.debug(json_data)
+            params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+            response = requests.post(
+                "https://graph.facebook.com/v2.6/me/messages",
+                params=params, json=json_data
+            )
+            response.raise_for_status()
+        get_basket_menu(recipient_id)
+        return 'HANDLE_MENU'
+    return 'HANDLE_MENU'
 
 
 def handle_start(recipient_id, message_text):
@@ -134,7 +205,6 @@ def handle_start(recipient_id, message_text):
     if message_text_string.get('category', None):
         menu = message_text_string.get('category')
     elif message_text_string.get('add_to_basket', None):
-        # Adding to basket
         logger.debug(
             "And add to basket:"
             f"{message_text_string.get('add_to_basket', None)}"
@@ -149,24 +219,45 @@ def handle_start(recipient_id, message_text):
             access_token,
             str(recipient_id)
         )
-        cart = add_proudct_to_cart(
-            'https://api.moltin.com/v2/carts/',
-            message_text_string.get('add_to_basket', None),
-            1,
-            access_token,
-            str(recipient_id)
-        )
-        products = get_cart_products(
-            'https://api.moltin.com/v2/carts/',
-            access_token,
-            str(recipient_id)
-        )
-        logger.debug(products)
+        if cart:
+            add_proudct_to_cart(
+                'https://api.moltin.com/v2/carts/',
+                message_text_string.get('add_to_basket', None),
+                1,
+                access_token,
+                str(recipient_id)
+            )
+            json_data = {
+                'recipient': {
+                    'id': recipient_id,
+                },
+                'message': {
+                    'text': 'Пицца добавлена в корзину'
+                }
+            }
+            logger.debug(json_data)
+            params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+            response = requests.post(
+                "https://graph.facebook.com/v2.6/me/messages",
+                params=params, json=json_data
+            )
+            response.raise_for_status()
         return 'START'
-    # else:
-    #     logger.debug('BASKET')
-    #     return 'HANDLE_MENU'
+    elif message_text_string.get('basket', None):
+        logger.debug('BASKET')
+        get_basket_menu(recipient_id)
+        return 'HANDLE_MENU'
 
+    send_menu(menu, recipient_id)
+    return 'START'
+
+
+def send_menu(menu, recipient_id):
+    database = Database(
+        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    )
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
     access_token = get_token(
@@ -201,7 +292,7 @@ def handle_start(recipient_id, message_text):
                 {
                     'type': 'postback',
                     'title': 'Акции',
-                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                    'payload': json.dumps({"category": 'front_page'}),
                 },
                 {
                     'type': 'postback',
@@ -270,10 +361,109 @@ def handle_start(recipient_id, message_text):
             'buttons': random.sample(category_buttons, 3),
         }
     )
-    logger.debug(pizzas)
+    database.set_(menu, pizzas)
+    logger.debug(f'Send CATEGORY {menu} CONTENT: {pizzas}')
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
+    pizzas_new = database.get(menu).decode()
+    logger.debug(f'send_menu retrive menu: {pizzas_new}')
+    json_data = {
+        'recipient': {
+            'id': recipient_id,
+        },
+        'message': {
+            'attachment': {
+                'type': 'template',
+                'payload': {
+                    'template_type': 'generic',
+                    'image_aspect_ratio': 'square',
+                    'elements': pizzas,
+                },
+            },
+        },
+    }
+    logger.debug(f'Send MENU JSON: {json_data}')
+    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    response = requests.post(
+        "https://graph.facebook.com/v2.6/me/messages",
+        params=params, json=json_data
+    )
+    response.raise_for_status()
+
+
+def get_basket_menu(recipient_id):
+    client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
+    access_token = get_token(
+        'https://api.moltin.com/oauth/access_token',
+        client_id
+    )
+    logger.debug(f'access_token: {access_token}')
+    goods = get_cart_products(
+        'https://api.moltin.com/v2/carts/',
+        access_token,
+        str(recipient_id)
+    )
+
+    picture_url = get_product_picture_url(
+        'https://api.moltin.com/v2/files/',
+        BASKET_LOGO_ID,
+        access_token
+    )
+    logger.debug(f'Goods: {goods}')
+    pizzas = [
+        {
+            'title': 'Меню',
+            'image_url': picture_url,
+            'subtitle': 'Здесь вы можете выбрать один из вариантов',
+            'buttons': [
+                {
+                    'type': 'postback',
+                    'title': 'Самовывоз',
+                    'payload': json.dumps(
+                        {'basket': recipient_id}
+                    ),
+                },
+                {
+                    'type': 'postback',
+                    'title': 'Доставка',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+                {
+                    'type': 'postback',
+                    'title': 'В меню',
+                    'payload': json.dumps({'category': 'front_page'}),
+                },
+            ],
+        }
+    ]
+    for full_pizza in goods.get('data'):
+        pizzas.append(
+            {
+                'title': (
+                    f"{full_pizza.get('name')} "
+                    f"({full_pizza.get('value').get('amount')} руб.)"
+                ),
+                'image_url': full_pizza.get('image').get('href'),
+                'subtitle': full_pizza.get('description'),
+                'buttons': [
+                    {
+                        'type': 'postback',
+                        'title': 'Добавить еще одну',
+                        'payload': json.dumps(
+                            {"add_to_basket": full_pizza.get('product_id')}
+                        ),
+                    },
+                    {
+                        'type': 'postback',
+                        'title': 'Убрать из корзины',
+                        'payload': json.dumps(
+                            {"remove_from_basket": full_pizza.get('id')}
+                        ),
+                    },
+                ],
+            }
+        )
     json_data = {
         'recipient': {
             'id': recipient_id,
@@ -296,7 +486,6 @@ def handle_start(recipient_id, message_text):
         params=params, json=json_data
     )
     response.raise_for_status()
-    return 'START'
 
 
 if __name__ == '__main__':
