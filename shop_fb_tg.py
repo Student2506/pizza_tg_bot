@@ -33,9 +33,9 @@ def handle_users_reply(sender_id, message_text):
     DATABASE = get_database_connection()
     states_functions = {
         'START': handle_start,
-        'HANDLE_MENU': handle_menu,
+        'HANDLE_MENU': handle_start,
     }
-    recorded_state = DATABASE.get(sender_id)
+    recorded_state = DATABASE.get(f'facebook_{sender_id}')
     # logger.debug(f'State: {recorded_state}')
     if (not recorded_state
             or recorded_state.decode('utf-8') not in states_functions.keys()):
@@ -48,7 +48,7 @@ def handle_users_reply(sender_id, message_text):
     logger.debug(f'Recoreded: {recorded_state.decode("utf-8")}')
     state_handler = states_functions[user_state]
     next_state = state_handler(sender_id, message_text)
-    DATABASE.set(sender_id, next_state)
+    DATABASE.set(f'facebook_{sender_id}', next_state)
 
 
 @app.route('/', methods=['GET'])
@@ -118,6 +118,11 @@ def send_message(recipient_id, message_text):
 
 
 def handle_start(recipient_id, message_text):
+    logger.debug(f'Handle start - {message_text}')
+    if message_text == '/start':
+        menu = 'front_page'
+    else:
+        menu = message_text
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
     access_token = get_token(
@@ -128,7 +133,7 @@ def handle_start(recipient_id, message_text):
     goods = get_products_by_category_slug(
         'https://api.moltin.com/v2/categories',
         access_token,
-        'front_page'
+        menu
     )
     logger.debug(f'Front page category: {goods}')
     picture_url = get_product_picture_url(
@@ -205,7 +210,7 @@ def handle_start(recipient_id, message_text):
             'type': 'postback',
             'title': category.get('name'),
             'payload': category.get('slug'),
-        } for category in categories.get('data')[:-1]
+        } for category in categories.get('data')
     ]
     logger.debug(f'Categroy_buttons {category_buttons}')
     pizzas.append(
