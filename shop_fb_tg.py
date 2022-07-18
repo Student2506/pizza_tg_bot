@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from flask import Flask, request
 
 from api_elasticpath import get_catalog, get_token, get_product_picture_url
+from api_elasticpath import get_products_by_category_id
+from api_elasticpath import get_products_by_category_slug
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -15,6 +17,7 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
 app = Flask(__name__)
+LOGO_ID = '682e8af6-5d7a-4bb3-bb31-e1f1f8a858f3'
 
 
 @app.route('/', methods=['GET'])
@@ -82,16 +85,49 @@ def send_menu(recipient_id, message_text):
         client_id
     )
     logger.debug(f'access_token: {access_token}')
-    goods = get_catalog('https://api.moltin.com/v2/products', access_token)
-    logger.debug(f'goods: {goods}')
-    pizzas = []
-    for pizza in goods.get('data')[:5]:
+    goods = get_products_by_category_slug('https://api.moltin.com/v2/categories', access_token, 'front_page')
+    logger.debug(f'Front page category: {goods}')
+    # goods = get_products_by_category_id(
+    #     'https://api.moltin.com/v2/products',
+    #     access_token,
+    #     categories.id
+    # )
+    # logger.debug(f'goods: {goods}')
+    picture_url = get_product_picture_url(
+        'https://api.moltin.com/v2/files/',
+        LOGO_ID,
+        access_token
+    )
+    pizzas = [
+        {
+            'title': 'Меню',
+            'image_url': picture_url,
+            'subtitle': 'Здесь вы можете выбрать один из вариантов',
+            'buttons': [
+                {
+                    'type': 'postback',
+                    'title': 'Корзина',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+                {
+                    'type': 'postback',
+                    'title': 'Акции',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+                {
+                    'type': 'postback',
+                    'title': 'Сделать заказ',
+                    'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+                },
+            ],
+        }
+    ]
+    for pizza in goods[0].get('relationships').get('products').get('data'):
         picture_url = get_product_picture_url(
             'https://api.moltin.com/v2/files/',
             pizza.get('relationships').get('main_image').get('data').get('id'),
             access_token
         )
-        # 'relationships': {'main_image': {'data': {'type': 'main_image', 'id': '79827cb1-c917-4e6b-ac1a-e3aa40222c22'}}}}
         pizzas.append(
             {
                 'title': (
@@ -122,21 +158,14 @@ def send_menu(recipient_id, message_text):
                 'type': 'template',
                 'payload': {
                     'template_type': 'generic',
+                    'image_aspect_ratio': 'square',
                     'elements': pizzas,
                 },
             },
         },
     }
+    logger.debug(json_data)
     params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
-    # headers = {"Content-Type": "application/json"}
-    # request_content = {
-    #     "recipient": {
-    #         "id": recipient_id
-    #     },
-    #     "message": {
-    #         "text": message_text
-    #     }
-    # }
     response = requests.post(
         "https://graph.facebook.com/v2.6/me/messages",
         params=params, json=json_data
