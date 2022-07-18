@@ -70,6 +70,13 @@ def verify():
     return "Hello world", 200
 
 
+@app.route('/update', methods=['POST'])
+def update_webhook():
+    data = request.get_json()
+    logger.debug(data)
+    return 'ok', 200
+
+
 @app.route('/', methods=['POST'])
 def webhook():
     """
@@ -343,7 +350,9 @@ def send_menu(menu, recipient_id):
         'https://api.moltin.com/v2/categories',
         access_token
     )
-    logger.debug(categories)
+    logger.debug(
+        'Our current categories: '
+        f'{[category.get("slug") for category in categories.get("data")]}')
     category_buttons = [
         {
             'type': 'postback',
@@ -361,13 +370,13 @@ def send_menu(menu, recipient_id):
             'buttons': random.sample(category_buttons, 3),
         }
     )
-    database.set_(menu, pizzas)
+    database.set_(menu, json.dumps(pizzas))
     logger.debug(f'Send CATEGORY {menu} CONTENT: {pizzas}')
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
-    pizzas_new = database.get(menu).decode()
-    logger.debug(f'send_menu retrive menu: {pizzas_new}')
+    pizzas_new = database.get(menu).decode('utf-8')
+    logger.debug(f'send_menu retrive menu: {json.dumps(pizzas_new)}')
     json_data = {
         'recipient': {
             'id': recipient_id,
@@ -378,7 +387,7 @@ def send_menu(menu, recipient_id):
                 'payload': {
                     'template_type': 'generic',
                     'image_aspect_ratio': 'square',
-                    'elements': pizzas,
+                    'elements': pizzas_new,
                 },
             },
         },
