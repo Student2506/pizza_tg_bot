@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 
-from api_elasticpath import get_catalog, get_token
+from api_elasticpath import get_catalog, get_token, get_product_picture_url
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -86,12 +86,19 @@ def send_menu(recipient_id, message_text):
     logger.debug(f'goods: {goods}')
     pizzas = []
     for pizza in goods.get('data')[:5]:
+        picture_url = get_product_picture_url(
+            'https://api.moltin.com/v2/files/',
+            pizza.get('relationships').get('main_image').get('data').get('id'),
+            access_token
+        )
+        # 'relationships': {'main_image': {'data': {'type': 'main_image', 'id': '79827cb1-c917-4e6b-ac1a-e3aa40222c22'}}}}
         pizzas.append(
             {
                 'title': (
                     f"{pizza.get('name')} "
-                    f"({pizza.get('price').get('amount')} руб.)"
+                    f"({pizza.get('price')[0].get('amount')} руб.)"
                 ),
+                'image_url': picture_url,
                 'subtitle': pizza.get('description'),
                 'buttons': [
                     {
