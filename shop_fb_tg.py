@@ -225,7 +225,7 @@ def webhook():
 
 
 def send_message(recipient_id, message_text):
-    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    params = {"access_token": os.environ["PIZZA_SHOP_FB_TOKEN"]}
     headers = {"Content-Type": "application/json"}
     request_content = json.dumps({
         "recipient": {
@@ -301,7 +301,7 @@ def handle_order(recipient_id, message_text):
                 }
             }
             logger.debug(json_data)
-            params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+            params = {"access_token": os.environ["PIZZA_SHOP_FB_TOKEN"]}
             response = requests.post(
                 "https://graph.facebook.com/v2.6/me/messages",
                 params=params, json=json_data
@@ -360,7 +360,7 @@ def handle_start(recipient_id, message_text):
                 }
             }
             logger.debug(json_data)
-            params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+            params = {"access_token": os.environ["PIZZA_SHOP_FB_TOKEN"]}
             response = requests.post(
                 "https://graph.facebook.com/v2.6/me/messages",
                 params=params, json=json_data
@@ -409,7 +409,7 @@ def send_menu(menu, recipient_id):
         },
     }
     logger.debug(f'Send MENU JSON: {json_data}')
-    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    params = {"access_token": os.environ["PIZZA_SHOP_FB_TOKEN"]}
     response = requests.post(
         "https://graph.facebook.com/v2.6/me/messages",
         params=params, json=json_data
@@ -505,7 +505,7 @@ def get_basket_menu(recipient_id):
         },
     }
     logger.debug(json_data)
-    params = {"access_token": os.environ["PAGE_ACCESS_TOKEN"]}
+    params = {"access_token": os.environ["PIZZA_SHOP_FB_TOKEN"]}
     response = requests.post(
         "https://graph.facebook.com/v2.6/me/messages",
         params=params, json=json_data
