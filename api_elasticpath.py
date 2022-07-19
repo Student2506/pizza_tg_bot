@@ -197,8 +197,9 @@ def get_products_by_category_id(url, access_token, id):
     }
     response = requests.get(url, params=params, headers=headers)
     response.raise_for_status()
-    logger.debug(response.json().get('data'))
-    return response.json().get('data')
+    products = response.json().get('data')
+    logger.debug(products)
+    return products
 
 
 def get_products_by_category_slug(url, access_token, slug):
@@ -211,5 +212,6 @@ def get_products_by_category_slug(url, access_token, slug):
     }
     response = requests.get(url, params=params, headers=headers)
     response.raise_for_status()
-    logger.debug(response.json().get('data'))
-    return response.json().get('data')
+    products = response.json().get('data')
+    logger.debug(products)
+    return products
