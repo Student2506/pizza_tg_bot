@@ -14,3 +14,4 @@ class Database(object):
     def get(self, field):
         value = self.db.get(field)
         return value
+
