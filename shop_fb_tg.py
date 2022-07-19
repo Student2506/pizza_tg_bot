@@ -2,7 +2,9 @@ import json
 import logging
 import os
 import random
+from textwrap import dedent
 
+import redis
 import requests
 from dotenv import load_dotenv
 from flask import Flask, request
@@ -12,7 +14,6 @@ from api_elasticpath import get_catalog, get_product_detail
 from api_elasticpath import get_product_picture_url
 from api_elasticpath import get_products_by_category_slug, get_token
 from api_elasticpath import remove_products_from_cart
-from database_backend import Database
 
 logger = logging.getLogger(__name__)
 FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -28,10 +29,10 @@ BASKET_LOGO_ID = '1e21b975-bd32-4cf1-9445-40ad420461f7'
 
 
 def handle_users_reply(sender_id, message_text):
-    database = Database(
-        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
-        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
-        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    database = redis.Redis(
+        host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
     )
     states_functions = {
         'START': handle_start,
@@ -49,7 +50,7 @@ def handle_users_reply(sender_id, message_text):
     logger.debug(f'User_state: {user_state}')
     state_handler = states_functions[user_state]
     next_state = state_handler(sender_id, message_text)
-    database.set_(f'facebook_{sender_id}', next_state)
+    database.set(f'facebook_{sender_id}', next_state)
 
 
 @app.route('/', methods=['GET'])
@@ -74,11 +75,10 @@ def verify():
 def update_webhook():
     data = request.get_json()
     logger.debug(f'findme {data}')
-
-    database = Database(
-        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
-        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
-        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    database = redis.Redis(
+        host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
     )
     client_id = os.getenv('PIZZA_SHOP_CLIENT_ID')
     logger.debug(f'Client_id: {client_id}')
@@ -92,9 +92,7 @@ def update_webhook():
         access_token
     )
     menus = [category.get("slug") for category in categories.get("data")]
-    logger.debug(
-        'Our current categories: '
-        f'{menus}')
+    logger.debug(f'Our current categories: {menus}')
     for menu in menus:
         goods = get_products_by_category_slug(
             'https://api.moltin.com/v2/categories',
@@ -139,21 +137,19 @@ def update_webhook():
                 pizza.get('id'),
                 access_token
             )
+            full_pizza_img = full_pizza.get('relationships').get('main_image')
             picture_url = get_product_picture_url(
                 'https://api.moltin.com/v2/files/',
-                full_pizza.get('relationships').get('main_image').get(
-                    'data'
-                ).get(
-                    'id'
-                ),
+                full_pizza_img.get('data').get('id'),
                 access_token
             )
+            title = f'''
+                "{full_pizza.get('name')} "
+                "({full_pizza.get('price')[0].get('amount')} руб.)"
+            '''
             pizzas.append(
                 {
-                    'title': (
-                        f"{full_pizza.get('name')} "
-                        f"({full_pizza.get('price')[0].get('amount')} руб.)"
-                    ),
+                    'title': dedent(title),
                     'image_url': picture_url,
                     'subtitle': full_pizza.get('description'),
                     'buttons': [
@@ -190,7 +186,7 @@ def update_webhook():
                 'buttons': random.sample(category_buttons, 3),
             }
         )
-        database.set_(menu, json.dumps(pizzas))
+        database.set(menu, json.dumps(pizzas))
     return 'ok', 200
 
 
@@ -201,26 +197,25 @@ def webhook():
     """
     data = request.get_json()
     logger.debug(data)
-    if data["object"] == "page":
-        logger.debug(f'Entry: {data["entry"]}')
-        for entry in data["entry"]:
-            logger.debug(f'Messaging: {entry["messaging"]}')
-            for messaging_event in entry["messaging"]:
-                logger.debug(f'Event: {messaging_event.get("message")}')
-                if messaging_event.get("message"):
-                    sender_id = messaging_event["sender"]["id"]
-                    # recipient_id = messaging_event["recipient"]["id"]
-                    message_text = messaging_event["message"]["text"]
-                    logger.debug(
-                        f'Main webhook - sender: {sender_id},'
-                        f'message: {message_text}'
-                    )
-                    handle_users_reply(sender_id, message_text)
-                if messaging_event.get('postback'):
-                    sender_id = messaging_event["sender"]["id"]
-                    # recipient_id = messaging_event["recipient"]["id"]
-                    message_text = messaging_event["postback"]["payload"]
-                    handle_users_reply(sender_id, message_text)
+    if data["object"] != "page":
+        return "Bad request", 400
+    logger.debug(f'Entry: {data["entry"]}')
+    for entry in data["entry"]:
+        logger.debug(f'Messaging: {entry["messaging"]}')
+        for messaging_event in entry["messaging"]:
+            logger.debug(f'Event: {messaging_event.get("message")}')
+            if messaging_event.get("message"):
+                sender_id = messaging_event["sender"]["id"]
+                message_text = messaging_event["message"]["text"]
+                logger.debug(
+                    f'Main webhook - sender: {sender_id},'
+                    f'message: {message_text}'
+                )
+                handle_users_reply(sender_id, message_text)
+            if messaging_event.get('postback'):
+                sender_id = messaging_event["sender"]["id"]
+                message_text = messaging_event["postback"]["payload"]
+                handle_users_reply(sender_id, message_text)
     return "ok", 200
 
 
@@ -377,13 +372,11 @@ def handle_start(recipient_id, message_text):
 
 
 def send_menu(menu, recipient_id):
-    database = Database(
-        database_host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
-        database_port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
-        database_password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
+    database = redis.Redis(
+        host=os.getenv('PIZZA_SHOP_DATABASE_HOST'),
+        port=os.getenv('PIZZA_SHOP_DATABASE_PORT'),
+        password=os.getenv('PIZZA_SHOP_DATABASE_PASSWORD')
     )
-
-    # logger.debug(f'Send CATEGORY {menu} CONTENT: {pizzas}')
     params = {
         'access_token': os.getenv('PIZZA_SHOP_FB_TOKEN'),
     }
@@ -463,12 +456,13 @@ def get_basket_menu(recipient_id):
         }
     ]
     for full_pizza in goods.get('data'):
+        title = f'''
+            {full_pizza.get('name')}
+            ({full_pizza.get('value').get('amount')} руб.)
+        '''
         pizzas.append(
             {
-                'title': (
-                    f"{full_pizza.get('name')} "
-                    f"({full_pizza.get('value').get('amount')} руб.)"
-                ),
+                'title': dedent(title),
                 'image_url': full_pizza.get('image').get('href'),
                 'subtitle': full_pizza.get('description'),
                 'buttons': [
